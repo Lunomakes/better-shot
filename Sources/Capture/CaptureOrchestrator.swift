@@ -175,6 +175,12 @@ final class CaptureOrchestrator {
         let isColor = action == .colorPicker
         let copied = Self.copyText(value, to: pasteboard)
         ScreenCapture.shared.playShutterSound()
+        if !isColor {
+            // Replaces the "Recognizing text…" toast with what was read.
+            ToastWindow.shared.dismiss(animated: false)
+            RecognizedTextPanel.shared.show(text: value, copied: copied, on: captureScreen)
+            return
+        }
         ToastWindow.shared.show(isError: !copied, title: copied ? "Copied" : "Couldn’t copy",
             message: copied ? (isColor ? "\(value) copied to clipboard" : "Text copied to clipboard") : "Try Copy again.",
             systemIcon: isColor ? "eyedropper" : "doc.text.viewfinder", on: captureScreen)
@@ -356,4 +362,148 @@ final class CaptureOrchestrator {
         return url
     }
 
+}
+
+// MARK: - Recognized Text
+
+/// Shows what OCR read, so it can be checked, corrected, and copied again.
+@MainActor
+final class RecognizedTextPanel {
+    static let shared = RecognizedTextPanel()
+
+    private var panel: NSPanel?
+    /// The app that had focus before the panel took the keyboard for editing.
+    private var previousApp: NSRunningApplication?
+
+    private init() {}
+
+    func show(text: String, copied: Bool, on preferredScreen: NSScreen?) {
+        panel?.orderOut(nil)
+        let model = RecognizedTextModel(text: text, copied: copied)
+        let hostingView = NSHostingView(rootView: RecognizedTextView(model: model) { [weak self] in self?.close() })
+        let panel = RecognizedTextWindow(
+            contentRect: NSRect(origin: .zero, size: hostingView.fittingSize),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        hostingView.sizingOptions = []
+        hostingView.autoresizingMask = [.width, .height]
+        panel.contentView = hostingView
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .floating
+        panel.isMovableByWindowBackground = true
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.onCancel = { [weak self] in self?.close() }
+        PreviewWindowCaptureExclusion.shared.register(window: panel)
+
+        guard let screen = preferredScreen ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        panel.setFrameOrigin(ToastWindow.origin(for: panel.frame.size, in: screen.visibleFrame))
+        if !NSApp.isActive { previousApp = NSWorkspace.shared.frontmostApplication }
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+        self.panel = panel
+    }
+
+    func close() {
+        panel?.orderOut(nil)
+        panel = nil
+        previousApp?.activate()
+        previousApp = nil
+    }
+}
+
+private final class RecognizedTextWindow: NSPanel {
+    var onCancel: () -> Void = {}
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+
+    /// The text view turns Esc into completion, so the panel takes it first.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, event.keyCode == 53 {
+            onCancel()
+            return
+        }
+        super.sendEvent(event)
+    }
+}
+
+@Observable
+@MainActor
+private final class RecognizedTextModel {
+    var text: String
+    private var copiedText: String?
+
+    init(text: String, copied: Bool) {
+        self.text = text
+        copiedText = copied ? text : nil
+    }
+
+    var status: String {
+        switch copiedText {
+        case text: "Copied to clipboard"
+        case nil: "Not copied yet"
+        default: "Edited. Copy again to update the clipboard."
+        }
+    }
+
+    func copy() {
+        if CaptureOrchestrator.copyText(text) { copiedText = text }
+    }
+}
+
+private struct RecognizedTextView: View {
+    @Bindable var model: RecognizedTextModel
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text.viewfinder")
+                    .foregroundStyle(.secondary)
+                Text("Recognized Text")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Close (Esc)")
+                .accessibilityLabel("Close")
+            }
+
+            TextEditor(text: $model.text)
+                .font(.system(size: 13))
+                .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
+                .padding(6)
+                .frame(height: 180)
+                .background(Color.primary.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+                }
+                .accessibilityLabel("Recognized text")
+
+            HStack(spacing: 8) {
+                Text(model.status)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Copy", systemImage: "doc.on.doc", action: model.copy)
+                    .controlSize(.small)
+                    .disabled(model.text.isEmpty)
+            }
+        }
+        .padding(14)
+        .frame(width: 420)
+        .glassSurface(cornerRadius: 14, depth: .raised)
+    }
 }
