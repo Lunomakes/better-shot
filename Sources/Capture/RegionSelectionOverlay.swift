@@ -44,6 +44,10 @@ final class RegionSelectionOverlay {
     private var continuation: CheckedContinuation<RegionSelectionOutcome, Never>?
     private var previousApp: NSRunningApplication?
     private var frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:]
+    /// The screenshot selection on screen, so the capture bar shown over it can back out of it.
+    private static weak var active: RegionSelectionOverlay?
+
+    static func cancelActive() { active?.finish(.cancelled) }
 
     /// Returns once the app that was frontmost is active again, so captures show its windows as focused.
     func selectRegion(allowsWindowSelection: Bool = true, frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:]) async -> RegionSelectionOutcome {
@@ -56,6 +60,12 @@ final class RegionSelectionOverlay {
         let outcome = await withCheckedContinuation { cont in
             self.continuation = cont
             showOverlays()
+            if allowsWindowSelection {
+                Self.active = self
+                RecordingBarPresenter.shared.showOverRegionSelection(
+                    on: ActiveDisplayResolver.activeDisplayID(preferPointer: true),
+                    level: Self.overlayLevel.rawValue + 1)
+            }
         }
         if let app = previousApp {
             previousApp = nil
@@ -80,7 +90,7 @@ final class RegionSelectionOverlay {
             )
             window.isOpaque = false
             window.backgroundColor = .clear
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
+            window.level = Self.overlayLevel
             window.hasShadow = false
             window.ignoresMouseEvents = false
             window.acceptsMouseMovedEvents = true
@@ -132,6 +142,8 @@ final class RegionSelectionOverlay {
         crosshair.set()
     }
 
+    private static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
+
     /// Other apps' normal windows in global AppKit points, frontmost first.
     private static func visibleWindowRects() -> [CGRect] {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
@@ -163,6 +175,10 @@ final class RegionSelectionOverlay {
     }
 
     private func finish(_ outcome: RegionSelectionOutcome) {
+        if Self.active === self {
+            Self.active = nil
+            RecordingBarPresenter.shared.endRegionSelection()
+        }
         NSCursor.pop()
         closeOverlays()
         continuation?.resume(returning: outcome)

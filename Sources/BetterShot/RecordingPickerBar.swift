@@ -46,6 +46,11 @@ struct RecordingPickerControls: View {
     ]
 
     private func capture(_ action: ShortcutService.Action) {
+        if presenter.isOverRegionSelection {
+            // Already selecting an area; any other mode replaces the selection.
+            guard action != .region else { return }
+            RegionSelectionOverlay.cancelActive()
+        }
         presenter.showsRecordingOptions = false
         let screen = ActiveDisplayResolver.activeScreen(preferPointer: true)
         Task { await CaptureOrchestrator.shared.performCapture(action, on: screen) }
@@ -63,47 +68,57 @@ struct RecordingPickerControls: View {
                 }
                 .help(title)
             }
-            BarDivider()
-            Menu {
-                Section("Screenshot timer") {
-                    ForEach(SelfTimerDelay.allCases, id: \.rawValue) { delay in
-                        Button {
-                            screenshotDelay = delay.rawValue
-                        } label: {
-                            menuSelectionLabel(delay.label, isSelected: screenshotDelay == delay.rawValue)
-                        }
-                    }
-                }
-                Section("Recording timer") {
-                    ForEach(Self.timerOptions, id: \.self) { seconds in
-                        Button {
-                            recordingDelay = seconds
-                        } label: {
-                            menuSelectionLabel(timerLabel(seconds), isSelected: recordingDelay == seconds)
-                        }
-                    }
-                }
-            } label: {
-                BarActionLabel(id: .timer, title: timerTooltip, systemImage: "timer", caption: "Timer")
-            }
-            .menuStyle(.button).buttonStyle(BarButtonStyle()).menuIndicator(.hidden)
-            .accessibilityLabel("Screenshot and recording timers")
-            Button { presenter.showsRecordingOptions.toggle() } label: {
-                BarActionLabel(id: .recording, title: "Recording options", systemImage: "video",
-                               caption: "Recording")
-            }
-            .buttonStyle(BarButtonStyle())
-            .accessibilityLabel("Recording options")
-            .popover(isPresented: $presenter.showsRecordingOptions, arrowEdge: .top) {
-                RecordingOptionsView()
-            }
+            // Their menu and popover would open beneath the selection overlay.
+            if !presenter.isOverRegionSelection { recordingControls }
             if showsCloseButton {
                 BarActionButton(id: .close, title: "Close", systemImage: "xmark",
                                 accessibility: "Close capture bar — Esc") {
+                    if presenter.isOverRegionSelection {
+                        RegionSelectionOverlay.cancelActive()
+                        return
+                    }
                     presenter.dismiss()
                     Task { await CameraRecordingManager.shared.stopPreview() }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var recordingControls: some View {
+        BarDivider()
+        Menu {
+            Section("Screenshot timer") {
+                ForEach(SelfTimerDelay.allCases, id: \.rawValue) { delay in
+                    Button {
+                        screenshotDelay = delay.rawValue
+                    } label: {
+                        menuSelectionLabel(delay.label, isSelected: screenshotDelay == delay.rawValue)
+                    }
+                }
+            }
+            Section("Recording timer") {
+                ForEach(Self.timerOptions, id: \.self) { seconds in
+                    Button {
+                        recordingDelay = seconds
+                    } label: {
+                        menuSelectionLabel(timerLabel(seconds), isSelected: recordingDelay == seconds)
+                    }
+                }
+            }
+        } label: {
+            BarActionLabel(id: .timer, title: timerTooltip, systemImage: "timer", caption: "Timer")
+        }
+        .menuStyle(.button).buttonStyle(BarButtonStyle()).menuIndicator(.hidden)
+        .accessibilityLabel("Screenshot and recording timers")
+        Button { presenter.showsRecordingOptions.toggle() } label: {
+            BarActionLabel(id: .recording, title: "Recording options", systemImage: "video",
+                           caption: "Recording")
+        }
+        .buttonStyle(BarButtonStyle())
+        .accessibilityLabel("Recording options")
+        .popover(isPresented: $presenter.showsRecordingOptions, arrowEdge: .top) {
+            RecordingOptionsView()
         }
     }
 

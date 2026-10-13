@@ -34,6 +34,9 @@ final class RecordingBarPresenter {
     /// tells the hosting view which part of itself is real and satellite
     /// windows where to anchor.
     var showsRecordingOptions = false
+    /// The bar floats over a screenshot region selection as its mode switcher.
+    /// It must not take the keyboard there: Space and Esc belong to the selection.
+    private(set) var isOverRegionSelection = false
     @ObservationIgnored private var isConfirmingRecordingAction = false
 
     var barFrameInPanel: CGRect = .zero
@@ -71,6 +74,26 @@ final class RecordingBarPresenter {
         NSApp.activate(ignoringOtherApps: true)
         panel?.makeKey()
         warmCameraPreviewIfEnabled()
+    }
+
+    /// Shows the screenshot controls above the region selector, without
+    /// activating the bar, until `endRegionSelection()`.
+    func showOverRegionSelection(on displayID: CGDirectDisplayID?, level: Int) {
+        guard !ScreenRecordingManager.shared.isActive else { return }
+        mode = .picker
+        isVisible = true
+        isOverRegionSelection = true
+        showsRecordingOptions = false
+        self.displayID = displayID
+        let panel = panel ?? makePanel()
+        panel.level = NSWindow.Level(rawValue: level)
+        position(panel, displayID: displayID)
+        panel.orderFrontRegardless()
+    }
+
+    func endRegionSelection() {
+        guard isOverRegionSelection else { return }
+        hide()
     }
 
     /// All screenshot entry points clear the shared picker before capturing.
@@ -141,6 +164,10 @@ final class RecordingBarPresenter {
 
     func hide() {
         isVisible = false
+        if isOverRegionSelection {
+            isOverRegionSelection = false
+            panel?.level = .floating
+        }
         // `orderOut` sends no exit events, so a hover that's live when the
         // bar hides has to be ended by hand - it holds the pointing hand.
         BarControlHoverView.endActiveHover()
@@ -288,7 +315,7 @@ final class RecordingBarPresenter {
 
 private final class RecordingBarPanel: NSPanel {
     override var canBecomeKey: Bool {
-        true
+        !RecordingBarPresenter.shared.isOverRegionSelection
     }
 
     override var canBecomeMain: Bool {
