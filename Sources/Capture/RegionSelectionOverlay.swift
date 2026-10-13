@@ -383,7 +383,7 @@ private final class SelectionView: NSView {
         }
 
         let hint = movesSelection ? "drag to adjust" : "drag the edges to resize, or draw a new area"
-        drawLabel("\(pixelSize(rect))  ·  ↩ to capture  ·  \(hint)  ·  esc", below: rect)
+        drawLabel("\(pixelSize(rect))  ·  space to capture  ·  \(hint)  ·  esc", below: rect)
     }
 
     private func pixelSize(_ rect: CGRect) -> String {
@@ -563,7 +563,8 @@ private final class SelectionView: NSView {
         case 53:
             onCancel()
         case 49:
-            onWindow()
+            // Space confirms a drawn area; with nothing selected it still switches to window capture.
+            if let selection { onSelect(selection) } else { onWindow() }
         case 36, 76:
             if let selection { onSelect(selection) }
         default:
