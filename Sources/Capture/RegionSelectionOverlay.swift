@@ -68,6 +68,8 @@ final class RegionSelectionOverlay {
     private func showOverlays() {
         let crosshair = NSCursor.crosshair
         let capturesOnRelease = controlScreen != nil || AppPreferences.captureRegionOnRelease
+        // Read before the overlays exist so they are not in the list.
+        let windowRects = controlScreen == nil && allowsWindowSelection ? Self.visibleWindowRects() : []
 
         for screen in controlScreen.map({ [$0] }) ?? NSScreen.screens {
             let window = OverlayWindow(
@@ -90,7 +92,12 @@ final class RegionSelectionOverlay {
                 screen: screen,
                 cursor: crosshair,
                 selection: previousRegion,
-                capturesOnRelease: capturesOnRelease
+                capturesOnRelease: capturesOnRelease,
+                windowRects: windowRects.compactMap {
+                    let local = RegionGeometry.localRect(global: $0, screenFrame: screen.frame)
+                        .intersection(CGRect(origin: .zero, size: screen.frame.size))
+                    return local.width > 3 && local.height > 3 ? local : nil
+                }
             ) { [weak self] rect in
                 self?.finishSelection(rect: rect, screen: screen)
             } onCancel: { [weak self] in
@@ -123,6 +130,24 @@ final class RegionSelectionOverlay {
         }
         crosshair.push()
         crosshair.set()
+    }
+
+    /// Other apps' normal windows in global AppKit points, frontmost first.
+    private static func visibleWindowRects() -> [CGRect] {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        let primaryHeight = CGDisplayBounds(CGMainDisplayID()).height
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        return list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != ownPID,
+                  (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = (info[kCGWindowBounds as String] as? NSDictionary).flatMap({ CGRect(dictionaryRepresentation: $0) }),
+                  bounds.width > 1, bounds.height > 1 else { return nil }
+            // The top-left/bottom-left flip is its own inverse.
+            return RegionGeometry.pointsRect(global: bounds, primaryHeight: primaryHeight)
+        }
     }
 
     private func finishSelection(rect: CGRect, screen: NSScreen) {
@@ -194,6 +219,8 @@ private final class SelectionView: NSView {
     private var dragStart: NSPoint?
     private var dragCurrent: NSPoint?
     private var mouseLocation: NSPoint?
+    private var hoveredWindow: CGRect?
+    private let windowRects: [CGRect]
     private var selection: CGRect?
     private var movesSelection: Bool
     var hasSelection: Bool { selection != nil }
@@ -214,6 +241,7 @@ private final class SelectionView: NSView {
         cursor: NSCursor,
         selection: CGRect?,
         capturesOnRelease: Bool,
+        windowRects: [CGRect],
         onSelect: @escaping (CGRect) -> Void,
         onCancel: @escaping () -> Void,
         onWindow: @escaping () -> Void
@@ -223,6 +251,7 @@ private final class SelectionView: NSView {
         self.selection = selection
         self.movesSelection = selection == nil
         self.capturesOnRelease = capturesOnRelease
+        self.windowRects = windowRects
         self.onSelect = onSelect
         self.onCancel = onCancel
         self.onWindow = onWindow
@@ -240,6 +269,10 @@ private final class SelectionView: NSView {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
         updateTrackingAreas()
+        if let window {
+            let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            if bounds.contains(loc) { updateHover(at: loc) }
+        }
     }
 
     override func updateTrackingAreas() {
@@ -276,6 +309,8 @@ private final class SelectionView: NSView {
             drawSelection(start: start, current: current)
         } else if let selection {
             drawAdjustableSelection(selection)
+        } else if let hoveredWindow {
+            drawHoveredWindow(hoveredWindow)
         } else if let mouse = mouseLocation {
             drawGuideLines(at: mouse)
         }
@@ -312,6 +347,20 @@ private final class SelectionView: NSView {
         borderPath.stroke()
 
         drawLabel(pixelSize(selectionRect), below: selectionRect)
+    }
+
+    private func drawHoveredWindow(_ rect: CGRect) {
+        NSColor.clear.setFill()
+        rect.fill(using: .copy)
+
+        NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+        rect.fill()
+        NSColor.controlAccentColor.setStroke()
+        let borderPath = NSBezierPath(rect: rect.insetBy(dx: 1, dy: 1))
+        borderPath.lineWidth = 2
+        borderPath.stroke()
+
+        drawLabel("\(pixelSize(rect))  ·  click to capture window  ·  drag to select area", below: rect)
     }
 
     private func drawAdjustableSelection(_ rect: CGRect) {
@@ -365,7 +414,17 @@ private final class SelectionView: NSView {
 
     func clearSelection() {
         selection = nil
+        hoveredWindow = nil
         needsDisplay = true
+    }
+
+    /// The frontmost other-app window under the pointer, while nothing is selected or being drawn.
+    private func updateHover(at point: NSPoint) {
+        let hovered = selection == nil && dragStart == nil ? windowRects.first { $0.contains(point) } : nil
+        if hovered != hoveredWindow {
+            hoveredWindow = hovered
+            needsDisplay = true
+        }
     }
 
     /// The previous area only resizes from its edges, so a drag inside it can draw a new area.
@@ -413,7 +472,14 @@ private final class SelectionView: NSView {
     override func mouseMoved(with event: NSEvent) {
         let loc = convert(event.locationInWindow, from: nil)
         mouseLocation = loc
+        updateHover(at: loc)
         updateCursor(at: loc)
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        mouseLocation = nil
+        hoveredWindow = nil
         needsDisplay = true
     }
 
@@ -470,7 +536,12 @@ private final class SelectionView: NSView {
         guard let start = dragStart else { return }
         dragStart = nil
         dragCurrent = nil
-        let rect = rectFromPoints(start, end)
+        var rect = rectFromPoints(start, end)
+        // A click without a drag takes the highlighted window's area.
+        if rect.width <= 3 || rect.height <= 3, selection == nil, let window = windowRects.first(where: { $0.contains(start) }) {
+            rect = window
+            hoveredWindow = nil
+        }
 
         if rect.width > 3, rect.height > 3 {
             if capturesOnRelease {
