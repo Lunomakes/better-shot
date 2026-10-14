@@ -23,7 +23,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         navigation.page = section ?? .home
         let controller = NSHostingController(rootView: PreferencesView(navigation: navigation) { [weak self] in
-            self?.window?.title = $0.title
+            self?.window?.title = NSLocalizedString($0.title, comment: "")
         })
 
         let win = NSWindow(contentViewController: controller)
@@ -32,7 +32,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         win.minSize = NSSize(width: 780, height: 620)
         win.titlebarAppearsTransparent = true
         win.toolbarStyle = .unified
-        win.title = navigation.page.title
+        win.title = NSLocalizedString(navigation.page.title, comment: "")
         win.isReleasedWhenClosed = false
         win.delegate = self
         win.collectionBehavior = [.transient, .moveToActiveSpace]

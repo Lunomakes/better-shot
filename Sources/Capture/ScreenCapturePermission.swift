@@ -19,10 +19,10 @@ enum ScreenCapturePermission {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Restart BetterShot to capture"
-        alert.informativeText = "macOS hasn’t applied BetterShot’s Screen Recording permission yet. This can happen when BetterShot opens at login. Restart BetterShot, then try again. If it still can’t capture, check Privacy & Security › Screen & System Audio Recording."
-        alert.addButton(withTitle: "Restart")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = NSLocalizedString("Restart BetterShot to capture", comment: "")
+        alert.informativeText = NSLocalizedString("macOS hasn’t applied BetterShot’s Screen Recording permission yet. This can happen when BetterShot opens at login. Restart BetterShot, then try again. If it still can’t capture, check Privacy & Security › Screen & System Audio Recording.", comment: "")
+        alert.addButton(withTitle: NSLocalizedString("Restart", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
         if alert.runModal() == .alertFirstButtonReturn {
             defaults.set(false, forKey: grantedKey)
             BetterShotDelegate.relaunch()

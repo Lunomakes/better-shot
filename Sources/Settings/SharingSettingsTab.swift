@@ -39,7 +39,7 @@ struct SharingSettingsTab: View {
                 SettingRow("Jurisdiction", caption: "Match the bucket's jurisdiction in the R2 dashboard. Most buckets have none.") {
                     Picker("Jurisdiction", selection: $store.jurisdiction) {
                         ForEach(R2Jurisdiction.allCases, id: \.self) { jurisdiction in
-                            Text(jurisdiction.title).tag(jurisdiction)
+                            Text(LocalizedStringKey(jurisdiction.title)).tag(jurisdiction)
                         }
                     }
                     .labelsHidden()
@@ -160,9 +160,9 @@ struct SharingSettingsTab: View {
     private func statusLabel(_ title: String, detail: String, systemImage: String, tint: Color) -> some View {
         Label {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.callout.weight(.semibold))
-                Text(detail)
+                Text(LocalizedStringKey(detail))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -218,7 +218,7 @@ struct SharingSettingsTab: View {
     }
 
     private func problemLabel(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle.fill")
+        Label(LocalizedStringKey(message), systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
             .font(.callout)
             .fixedSize(horizontal: false, vertical: true)

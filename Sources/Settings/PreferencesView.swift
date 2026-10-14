@@ -74,10 +74,10 @@ struct PreferencesView: View {
                 ForEach(SettingsSection.sidebar, id: \.sections) { group in
                     Section {
                         ForEach(group.sections) { section in
-                            Label(section.title, systemImage: section.icon).tag(section)
+                            Label(LocalizedStringKey(section.title), systemImage: section.icon).tag(section)
                         }
                     } header: {
-                        if let title = group.title { Text(title) }
+                        if let title = group.title { Text(LocalizedStringKey(title)) }
                     }
                 }
             }
@@ -105,7 +105,7 @@ struct PreferencesView: View {
             .scrollIndicators(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
-            .navigationTitle(navigation.page.title)
+            .navigationTitle(LocalizedStringKey(navigation.page.title))
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: navigation.page) { _, section in onSelectionChange(section) }
@@ -139,6 +139,7 @@ struct GeneralSettingsTab: View {
     @State private var loginError: String?
 
     @AppStorage("bs_appAppearance") private var appAppearanceRaw: String = AppAppearance.system.rawValue
+    @State private var appLanguage = AppLanguage.current
     @AppStorage("bs_saveDirectory") private var saveDir = NSHomeDirectory() + "/Desktop"
     @AppStorage("bs_copyAfterSave") private var copyAfterSave = true
     @AppStorage(AfterCaptureAction.save.storageKey(for: .screenshot)) private var automaticallySaveScreenshots = AfterCaptureAction.save.defaultValue(for: .screenshot)
@@ -231,12 +232,29 @@ struct GeneralSettingsTab: View {
                 SettingRow("Theme") {
                     Picker("Theme", selection: appAppearance) {
                         ForEach(AppAppearance.allCases) { appearance in
-                            Text(appearance.label).tag(appearance)
+                            Text(LocalizedStringKey(appearance.label)).tag(appearance)
                         }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
+                }
+                SettingsDivider()
+                SettingRow("Language", caption: appLanguage == AppLanguage.launched
+                           ? nil : "Restart BetterShot to use the new language.") {
+                    HStack(spacing: 8) {
+                        if appLanguage != AppLanguage.launched {
+                            Button("Restart", action: AppLanguage.relaunch)
+                        }
+                        Picker("Language", selection: $appLanguage) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(LocalizedStringKey(language.label)).tag(language)
+                            }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        .onChange(of: appLanguage) { _, language in language.apply() }
+                    }
                 }
                 SettingsDivider()
                 SettingToggle("Show in Dock", caption: "Hide it to run BetterShot from the menu bar.", isOn: Binding(
@@ -357,7 +375,7 @@ struct GeneralSettingsTab: View {
                         }
                     )) {
                         ForEach(HistoryRetention.allCases) { retention in
-                            Text(retention.label).tag(retention.rawValue)
+                            Text(LocalizedStringKey(retention.label)).tag(retention.rawValue)
                         }
                     }
                     .labelsHidden()
@@ -411,9 +429,9 @@ struct GeneralSettingsTab: View {
                         .frame(minWidth: 180, idealWidth: 260, maxWidth: 300)
                     Menu {
                         ForEach(ScreenshotFileNaming.menuGroups) { group in
-                            Section(group.title) {
+                            Section(LocalizedStringKey(group.title)) {
                                 ForEach(group.items) { item in
-                                    Button(item.title) { fileNameTemplate += item.token }
+                                    Button(LocalizedStringKey(item.title)) { fileNameTemplate += item.token }
                                 }
                             }
                         }
@@ -573,7 +591,7 @@ private struct DefaultBackgroundPicker: View {
 
     private func swatchSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .accessibilityAddTraits(.isHeader)
@@ -620,7 +638,7 @@ private struct DefaultBackgroundPicker: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(color.name)
+        .help(LocalizedStringKey(color.name))
     }
 
     private func gradientButton(_ preset: GradientPreset) -> some View {
@@ -641,7 +659,7 @@ private struct DefaultBackgroundPicker: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(preset.name)
+        .help(LocalizedStringKey(preset.name))
     }
 
     private func bundledImageButton(_ asset: BundledBackgrounds.ImageAsset) -> some View {
@@ -928,7 +946,7 @@ struct CaptureSettingsTab: View {
                 SettingRow("Countdown", caption: "A moment to open a menu or hover something before the shot.") {
                     Picker("Countdown", selection: selfTimerDelay) {
                         ForEach(SelfTimerDelay.allCases, id: \.self) { delay in
-                            Text(delay.label).tag(delay)
+                            Text(LocalizedStringKey(delay.label)).tag(delay)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -1191,7 +1209,7 @@ struct ShortcutSettingsTab: View {
                 Picker("Category", selection: $category) {
                     Text("All Actions").tag(ShortcutService.Group?.none)
                     ForEach(ShortcutService.Group.allCases, id: \.self) { group in
-                        Text(group.title).tag(Optional(group))
+                        Text(LocalizedStringKey(group.title)).tag(Optional(group))
                     }
                 }
                 .labelsHidden()
@@ -1263,7 +1281,7 @@ struct ShortcutRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                Text(action.title).frame(maxWidth: .infinity, alignment: .leading)
+                Text(LocalizedStringKey(action.title)).frame(maxWidth: .infinity, alignment: .leading)
                 ShortcutRecorderView(shortcut: shortcut, clearsOnDelete: action.scope == .global, isRecording: Binding(
                     get: { recordingAction == action },
                     set: { recording in
@@ -1512,5 +1530,59 @@ struct AboutTab: View {
                 Task { await updater.checkForUpdates() }
             }
         }
+    }
+}
+
+// MARK: - Language
+
+/// BetterShot's own interface language, stored as this app's `AppleLanguages`.
+/// macOS reads it at launch, so a change applies after a restart.
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case system
+    case english = "en"
+    case simplifiedChinese = "zh-Hans"
+    case traditionalChinese = "zh-Hant"
+    case japanese = "ja"
+
+    private static let key = "AppleLanguages"
+
+    var id: String { rawValue }
+
+    /// Each language in its own name, so it can be found whatever the current language is.
+    var label: String {
+        switch self {
+        case .system: "System"
+        case .english: "English"
+        case .simplifiedChinese: "简体中文"
+        case .traditionalChinese: "繁體中文"
+        case .japanese: "日本語"
+        }
+    }
+
+    /// The choice saved for this app only; the global language list does not count.
+    static var current: AppLanguage {
+        guard let bundleID = Bundle.main.bundleIdentifier,
+              let first = (UserDefaults.standard.persistentDomain(forName: bundleID)?[key] as? [String])?.first
+        else { return .system }
+        return AppLanguage(rawValue: first) ?? .system
+    }
+
+    /// The language this run of the app started with.
+    static let launched = current
+
+    func apply() {
+        if self == .system {
+            UserDefaults.standard.removeObject(forKey: Self.key)
+        } else {
+            UserDefaults.standard.set([rawValue], forKey: Self.key)
+        }
+    }
+
+    static func relaunch() {
+        let reopen = Process()
+        reopen.executableURL = URL(fileURLWithPath: "/bin/sh")
+        reopen.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? reopen.run()
+        NSApp.terminate(nil)
     }
 }

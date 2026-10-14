@@ -290,7 +290,7 @@ struct TrayGridButton: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
 
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.system(size: 12, weight: .medium))
                     .fixedSize()
 
@@ -310,7 +310,7 @@ struct TrayGridButton: View {
         }
         .buttonStyle(TrayButtonStyle())
         .onHover { isHovered = $0 }
-        .accessibilityLabel(title)
+        .accessibilityLabel(LocalizedStringKey(title))
         .accessibilityValue(shortcut?.accessibilityDescription ?? "")
     }
 }
@@ -538,7 +538,7 @@ private struct TrayFullWidthButton: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
 
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.system(size: 12, weight: .medium))
 
                 Spacer()

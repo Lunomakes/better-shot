@@ -573,7 +573,7 @@ private struct RecognizedTextView: View {
                 .accessibilityLabel("Recognized text")
 
             HStack(spacing: 8) {
-                Text(model.status)
+                Text(LocalizedStringKey(model.status))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -618,7 +618,7 @@ private struct PickedColorView: View {
                 Text(format.string(components))
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     .textSelection(.enabled)
-                Text(copied ? "Copied to clipboard" : "Couldn’t copy. Try again.")
+                Text(LocalizedStringKey(copied ? "Copied to clipboard" : "Couldn’t copy. Try again."))
                     .font(.system(size: 11))
                     .foregroundStyle(copied ? AnyShapeStyle(.secondary) : AnyShapeStyle(.red))
             }

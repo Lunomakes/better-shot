@@ -81,8 +81,8 @@ private struct CaptureTile: View {
                     .foregroundStyle(.secondary)
                     .frame(height: 22)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 13, weight: .semibold))
-                    Text(shortcut?.displayString ?? "No shortcut")
+                    Text(LocalizedStringKey(title)).font(.system(size: 13, weight: .semibold))
+                    Text(shortcut?.displayString ?? NSLocalizedString("No shortcut", comment: ""))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

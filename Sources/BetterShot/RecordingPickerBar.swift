@@ -136,8 +136,8 @@ struct RecordingPickerControls: View {
 
     @ViewBuilder
     private func menuSelectionLabel(_ title: String, isSelected: Bool) -> some View {
-        if isSelected { Label(title, systemImage: "checkmark") }
-        else { Text(title) }
+        if isSelected { Label(LocalizedStringKey(title), systemImage: "checkmark") }
+        else { Text(LocalizedStringKey(title)) }
     }
 }
 
@@ -332,8 +332,8 @@ struct RecordingOptionsView: View {
 
     @ViewBuilder
     private func menuSelectionLabel(_ title: String, isSelected: Bool) -> some View {
-        if isSelected { Label(title, systemImage: "checkmark") }
-        else { Text(title) }
+        if isSelected { Label(LocalizedStringKey(title), systemImage: "checkmark") }
+        else { Text(LocalizedStringKey(title)) }
     }
 
     private func selectCamera(_ deviceID: String?) {

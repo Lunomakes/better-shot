@@ -181,7 +181,7 @@ struct BarTooltipPill: View {
     }
 
     var body: some View {
-        Text(text)
+        Text(LocalizedStringKey(text))
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(BarMetrics.activeTint)
             .lineLimit(1)
@@ -224,7 +224,7 @@ struct BarActionLabel: View {
             Image(systemName: systemImage)
                 .font(.system(size: caption == nil ? 17 : (controlSize == .mini ? 18 : 22), weight: .regular))
             if let caption {
-                Text(caption)
+                Text(LocalizedStringKey(caption))
                     .font(.system(size: 11))
                     .lineLimit(1)
             }
@@ -314,7 +314,7 @@ struct BarActionButton: View {
             BarActionLabel(id: id, title: title, systemImage: systemImage, tint: tint, caption: caption)
         }
         .buttonStyle(BarButtonStyle())
-        .accessibilityLabel(accessibility ?? title)
+        .accessibilityLabel(LocalizedStringKey(accessibility ?? title))
     }
 }
 

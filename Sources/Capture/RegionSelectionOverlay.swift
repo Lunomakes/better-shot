@@ -391,7 +391,7 @@ private final class SelectionView: NSView {
         borderPath.lineWidth = 2
         borderPath.stroke()
 
-        drawLabel("\(pixelSize(rect))  ·  click to capture window  ·  drag to select area", below: rect)
+        drawLabel("\(pixelSize(rect))  ·  \(NSLocalizedString("click to capture window", comment: ""))  ·  \(NSLocalizedString("drag to select area", comment: ""))", below: rect)
     }
 
     private func drawAdjustableSelection(_ rect: CGRect) {
@@ -413,8 +413,8 @@ private final class SelectionView: NSView {
             dot.stroke()
         }
 
-        let hint = movesSelection ? "drag to adjust" : "drag the edges to resize, or draw a new area"
-        drawLabel("\(pixelSize(rect))  ·  space to capture  ·  \(hint)  ·  esc", below: rect)
+        let hint = NSLocalizedString(movesSelection ? "drag to adjust" : "drag the edges to resize, or draw a new area", comment: "")
+        drawLabel("\(pixelSize(rect))  ·  \(NSLocalizedString("space to capture", comment: ""))  ·  \(hint)  ·  esc", below: rect)
     }
 
     private func pixelSize(_ rect: CGRect) -> String {

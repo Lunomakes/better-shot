@@ -21,7 +21,7 @@ struct OverlaySettingsTab: View {
                         set: { if let preset = $0.layout { layoutData = preset.data } }
                     )) {
                         ForEach(OverlayLayoutPreset.allCases) { preset in
-                            Text(preset.title).tag(preset).disabled(preset == .custom)
+                            Text(LocalizedStringKey(preset.title)).tag(preset).disabled(preset == .custom)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -41,7 +41,7 @@ struct OverlaySettingsTab: View {
                 SettingRow("Card size") {
                     Picker("Card size", selection: $size) {
                         ForEach(OverlayCardSize.allCases) { size in
-                            Text(size.label).tag(size.rawValue)
+                            Text(LocalizedStringKey(size.label)).tag(size.rawValue)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -141,13 +141,13 @@ struct OverlayLayoutEditor: View {
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.2), lineWidth: 0.5))
         .popover(item: $selectedSlot) { slot in
             VStack(alignment: .leading, spacing: 12) {
-                Text(slot.title).font(.headline)
+                Text(LocalizedStringKey(slot.title)).font(.headline)
                 Picker("Tool", selection: Binding<OverlayTool?>(
                     get: { layout.assignments[slot] },
                     set: { layout.assign($0, to: slot); selectedSlot = nil }
                 )) {
                     ForEach(OverlayTool.allCases) { tool in
-                        Label(tool.title, systemImage: tool.symbol).tag(Optional(tool))
+                        Label(LocalizedStringKey(tool.title), systemImage: tool.symbol).tag(Optional(tool))
                     }
                     Text("Empty").tag(Optional<OverlayTool>.none)
                         .disabled(layout.assignments[slot] == .dismiss)

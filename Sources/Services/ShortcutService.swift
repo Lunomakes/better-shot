@@ -280,6 +280,7 @@ extension ShortcutService.Shortcut {
 extension ShortcutService {
     func help(_ title: String, for action: Action?) -> String {
         let _ = revision
+        let title = NSLocalizedString(title, comment: "")
         guard let action, let shortcut = effectiveShortcut(for: action) else { return title }
         return "\(title) (\(shortcut.displayString))"
     }

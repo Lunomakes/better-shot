@@ -32,6 +32,8 @@ targets:
         buildPhase: resources
       - path: Resources/Assets.xcassets
         buildPhase: resources
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
       - path: Resources/Backgrounds
         type: folder
         buildPhase: resources

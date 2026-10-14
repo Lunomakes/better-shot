@@ -46,7 +46,7 @@ struct SettingsHeader<Accessory: View>: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .accessibilityAddTraits(.isHeader)
@@ -71,7 +71,7 @@ struct SettingsPageLink: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 3) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                 Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
             }
             .font(.callout)
@@ -145,9 +145,9 @@ struct SettingRow<Control: View>: View {
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                 if let caption {
-                    Text(caption)
+                    Text(LocalizedStringKey(caption))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -176,7 +176,7 @@ struct SettingToggle: View {
 
     var body: some View {
         SettingRow(title, caption: caption) {
-            Toggle(title, isOn: $isOn)
+            Toggle(LocalizedStringKey(title), isOn: $isOn)
                 .toggleStyle(.switch)
                 .labelsHidden()
                 .controlSize(.small)
@@ -199,13 +199,13 @@ struct SettingsResetRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             if let caption {
-                Text(caption)
+                Text(LocalizedStringKey(caption))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
-            Button(title, role: .destructive, action: action)
+            Button(LocalizedStringKey(title), role: .destructive, action: action)
         }
         .padding(.horizontal, 4)
     }
@@ -261,7 +261,7 @@ struct SettingsPermissionRow: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            Button(needsSettings ? "Open Settings\u{2026}" : "Allow\u{2026}") {
+            Button(LocalizedStringKey(needsSettings ? "Open Settings\u{2026}" : "Allow\u{2026}")) {
                 if needsSettings {
                     permissions.openSettings(permission)
                 } else {
@@ -269,7 +269,7 @@ struct SettingsPermissionRow: View {
                 }
             }
             .disabled(permissions.requesting != nil)
-            .accessibilityLabel(needsSettings ? "Open \(permission.title) settings" : "Allow \(permission.displayTitle) access")
+            .accessibilityLabel(needsSettings ? LocalizedStringKey("Open \(permission.title) settings") : LocalizedStringKey("Allow \(permission.displayTitle) access"))
         }
     }
 }

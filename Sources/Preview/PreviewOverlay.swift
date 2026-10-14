@@ -525,7 +525,7 @@ struct PreviewDeckView: View {
     }
 
     private func deckButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
+        Button(LocalizedStringKey(title), action: action)
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(.white.opacity(0.9))
             .padding(.horizontal, 8)
@@ -640,14 +640,14 @@ struct PreviewCardView: View {
                             Image(systemName: isVideo ? "play.rectangle" : "photo")
                                 .font(.title2)
                         }
-                        Text(isLoadingThumbnail ? "Loading preview…" : "Open \(isVideo ? "recording" : "image")")
+                        Text(LocalizedStringKey(isLoadingThumbnail ? "Loading preview…" : isVideo ? "Open recording" : "Open image"))
                             .font(.caption)
                     }
                     .frame(width: cardSize.width, height: cardSize.height)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isVideo ? "Open recording editor" : "Open image editor")
+                .accessibilityLabel(LocalizedStringKey(isVideo ? "Open recording editor" : "Open image editor"))
             }
         }
         .focusable()
@@ -662,7 +662,7 @@ struct PreviewCardView: View {
             return .handled
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(isVideo ? "Recording preview" : "Screenshot preview")
+        .accessibilityLabel(LocalizedStringKey(isVideo ? "Recording preview" : "Screenshot preview"))
         .task(id: url) { await loadThumbnail() }
         .disabled(overlay.savingItems.contains(url))
         .allowsHitTesting(!overlay.savingItems.contains(url))
@@ -715,8 +715,8 @@ struct PreviewCardView: View {
                     }
                     .buttonStyle(.plain)
                     .focused($focusedAction, equals: tool.rawValue)
-                    .accessibilityLabel(tool.title)
-                    .help(tool.title)
+                    .accessibilityLabel(LocalizedStringKey(tool.title))
+                    .help(LocalizedStringKey(tool.title))
                 }
             }
         }
