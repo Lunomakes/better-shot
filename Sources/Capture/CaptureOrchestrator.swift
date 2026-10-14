@@ -11,6 +11,8 @@ final class CaptureOrchestrator {
     private(set) var captureInProgress = false
     private var pendingCaptures: [(ShortcutService.Action, NSScreen?)] = []
     private var captureScreen: NSScreen?
+    /// An area already selected in the region selector, for the next OCR to read instead of asking again.
+    var pendingOCRRegion: CGRect?
 
     private init() {}
 
@@ -135,8 +137,9 @@ final class CaptureOrchestrator {
     private func performColorPick() async {
         do {
             let overlay = ColorPickerOverlay()
-            guard let hex = try await overlay.pickColor() else { return }
-            completeTextCapture(hex, action: .colorPicker)
+            guard let components = try await overlay.pickColor() else { return }
+            completeTextCapture(ColorPickerOverlay.Format.current.string(components), action: .colorPicker,
+                                color: components)
         } catch {
             ToastWindow.shared.show(isError: true, title: "Couldn’t pick color", message: error.localizedDescription,
                 systemIcon: "eyedropper", on: captureScreen)
@@ -147,7 +150,9 @@ final class CaptureOrchestrator {
         var progress: Task<Void, Never>?
         defer { progress?.cancel() }
         do {
-            let text = try await ScreenCapture.shared.captureAndOCR {
+            let region = pendingOCRRegion
+            pendingOCRRegion = nil
+            let text = try await ScreenCapture.shared.captureAndOCR(in: region) {
                 progress = Task {
                     try? await Task.sleep(for: .milliseconds(400))
                     guard !Task.isCancelled else { return }
@@ -165,7 +170,8 @@ final class CaptureOrchestrator {
     }
 
     /// Copy recognized text or a picked color without changing an empty clipboard result.
-    func completeTextCapture(_ text: String, action: ShortcutService.Action, pasteboard: NSPasteboard = .general) {
+    func completeTextCapture(_ text: String, action: ShortcutService.Action,
+                             color: ColorPickerOverlay.Components? = nil, pasteboard: NSPasteboard = .general) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             ToastWindow.shared.show(isError: true, title: "No text found", message: "Try selecting a clearer text area.",
                 systemIcon: "doc.text.viewfinder", on: captureScreen)
@@ -178,7 +184,13 @@ final class CaptureOrchestrator {
         if !isColor {
             // Replaces the "Recognizing text…" toast with what was read.
             ToastWindow.shared.dismiss(animated: false)
-            RecognizedTextPanel.shared.show(text: value, copied: copied, on: captureScreen)
+            CaptureResultPanel.shared.show(RecognizedTextView(text: value, copied: copied),
+                                           takesFocus: true, on: captureScreen)
+            return
+        }
+        if let color {
+            CaptureResultPanel.shared.show(PickedColorView(components: color, copied: copied),
+                                           takesFocus: false, autoHide: .seconds(5), on: captureScreen)
             return
         }
         ToastWindow.shared.show(isError: !copied, title: copied ? "Copied" : "Couldn’t copy",
@@ -364,24 +376,32 @@ final class CaptureOrchestrator {
 
 }
 
-// MARK: - Recognized Text
+// MARK: - Capture Result Panel
 
-/// Shows what OCR read, so it can be checked, corrected, and copied again.
+/// Floats an OCR or color-picker result at the toast position. Text results
+/// take the keyboard for editing; quick results float without stealing focus
+/// and hide on their own unless the pointer is over them.
 @MainActor
-final class RecognizedTextPanel {
-    static let shared = RecognizedTextPanel()
+final class CaptureResultPanel {
+    static let shared = CaptureResultPanel()
 
     private var panel: NSPanel?
-    /// The app that had focus before the panel took the keyboard for editing.
+    /// The app that had focus before the panel took the keyboard.
     private var previousApp: NSRunningApplication?
+    private var autoHide: Duration?
+    private var hideTask: Task<Void, Never>?
+
+    private static let shadowSlack: CGFloat = 18
 
     private init() {}
 
-    func show(text: String, copied: Bool, on preferredScreen: NSScreen?) {
-        panel?.orderOut(nil)
-        let model = RecognizedTextModel(text: text, copied: copied)
-        let hostingView = NSHostingView(rootView: RecognizedTextView(model: model) { [weak self] in self?.close() })
-        let panel = RecognizedTextWindow(
+    func show<Content: View>(_ content: Content, takesFocus: Bool, autoHide: Duration? = nil, on preferredScreen: NSScreen?) {
+        removePanel()
+        // The padding is room for glassSurface's shadow, which the window edge would otherwise cut square.
+        let hostingView = NSHostingView(rootView: content
+            .onHover { [weak self] in self?.setHovering($0) }
+            .padding(Self.shadowSlack))
+        let panel = CaptureResultWindow(
             contentRect: NSRect(origin: .zero, size: hostingView.fittingSize),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         hostingView.sizingOptions = []
@@ -389,32 +409,63 @@ final class RecognizedTextPanel {
         panel.contentView = hostingView
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // glassSurface draws the rounded shadow; AppKit's window shadow is a
+        // square outline around the transparent corners once the panel is key.
+        panel.hasShadow = false
         panel.level = .floating
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.onCancel = { [weak self] in self?.close() }
-        PreviewWindowCaptureExclusion.shared.register(window: panel)
+        // Left out of PreviewWindowCaptureExclusion on purpose: a result is
+        // something people screenshot, so it stays visible to captures.
 
         guard let screen = preferredScreen ?? NSScreen.main ?? NSScreen.screens.first else { return }
-        panel.setFrameOrigin(ToastWindow.origin(for: panel.frame.size, in: screen.visibleFrame))
-        if !NSApp.isActive { previousApp = NSWorkspace.shared.frontmostApplication }
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        let origin = ToastWindow.origin(for: panel.frame.size, in: screen.visibleFrame)
+        panel.setFrameOrigin(CGPoint(x: origin.x, y: origin.y + Self.shadowSlack))
+        if takesFocus {
+            if !NSApp.isActive { previousApp = NSWorkspace.shared.frontmostApplication }
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
         self.panel = panel
+        self.autoHide = autoHide
+        scheduleHide()
     }
 
     func close() {
-        panel?.orderOut(nil)
-        panel = nil
+        removePanel()
         previousApp?.activate()
         previousApp = nil
     }
+
+    private func removePanel() {
+        hideTask?.cancel()
+        hideTask = nil
+        autoHide = nil
+        panel?.orderOut(nil)
+        panel = nil
+    }
+
+    private func setHovering(_ hovering: Bool) {
+        if hovering { hideTask?.cancel() } else { scheduleHide() }
+    }
+
+    private func scheduleHide() {
+        hideTask?.cancel()
+        guard let autoHide else { return }
+        hideTask = Task { [weak self] in
+            try? await Task.sleep(for: autoHide)
+            guard !Task.isCancelled else { return }
+            self?.close()
+        }
+    }
 }
 
-private final class RecognizedTextWindow: NSPanel {
+private final class CaptureResultWindow: NSPanel {
     var onCancel: () -> Void = {}
 
     override var canBecomeKey: Bool { true }
@@ -429,6 +480,35 @@ private final class RecognizedTextWindow: NSPanel {
         super.sendEvent(event)
     }
 }
+
+/// Drags the panel from any spot no control claims. SwiftUI content is not
+/// window background to AppKit, so `isMovableByWindowBackground` alone never fires.
+private struct CaptureResultDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { DragView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class DragView: NSView {
+        override var mouseDownCanMoveWindow: Bool { true }
+        override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+    }
+}
+
+private struct CaptureResultCloseButton: View {
+    var body: some View {
+        Button { CaptureResultPanel.shared.close() } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Close (Esc)")
+        .accessibilityLabel("Close")
+    }
+}
+
+// MARK: Recognized Text
 
 @Observable
 @MainActor
@@ -454,9 +534,14 @@ private final class RecognizedTextModel {
     }
 }
 
+/// Shows what OCR read, so it can be checked, corrected, and copied again.
 private struct RecognizedTextView: View {
-    @Bindable var model: RecognizedTextModel
-    let onClose: () -> Void
+    @State private var model: RecognizedTextModel
+    @FocusState private var isEditing: Bool
+
+    init(text: String, copied: Bool) {
+        _model = State(initialValue: RecognizedTextModel(text: text, copied: copied))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -466,19 +551,13 @@ private struct RecognizedTextView: View {
                 Text("Recognized Text")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Close (Esc)")
-                .accessibilityLabel("Close")
+                CaptureResultCloseButton()
             }
 
             TextEditor(text: $model.text)
+                .focused($isEditing)
+                // AppKit's focus ring is square and ignores the clip; the rounded border below shows focus instead.
+                .focusEffectDisabled()
                 .font(.system(size: 13))
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
@@ -488,7 +567,8 @@ private struct RecognizedTextView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+                        .strokeBorder(isEditing ? Color.accentColor : Color.primary.opacity(0.1),
+                                      lineWidth: isEditing ? 1.5 : 0.5)
                 }
                 .accessibilityLabel("Recognized text")
 
@@ -504,6 +584,61 @@ private struct RecognizedTextView: View {
         }
         .padding(14)
         .frame(width: 420)
+        .background(CaptureResultDragArea())
         .glassSurface(cornerRadius: 14, depth: .raised)
+    }
+}
+
+// MARK: Picked Color
+
+/// The picked color with a HEX/RGB switch; switching copies the new format.
+private struct PickedColorView: View {
+    let components: ColorPickerOverlay.Components
+    @AppStorage(ColorPickerOverlay.Format.storageKey) private var format: ColorPickerOverlay.Format = .hex
+    @State private var copied: Bool
+
+    init(components: ColorPickerOverlay.Components, copied: Bool) {
+        self.components = components
+        _copied = State(initialValue: copied)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color(.sRGB, red: Double(components.red) / 255, green: Double(components.green) / 255,
+                            blue: Double(components.blue) / 255))
+                .frame(width: 32, height: 32)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
+                }
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(format.string(components))
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .textSelection(.enabled)
+                Text(copied ? "Copied to clipboard" : "Couldn’t copy. Try again.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(copied ? AnyShapeStyle(.secondary) : AnyShapeStyle(.red))
+            }
+            .frame(minWidth: 150, alignment: .leading)
+
+            Picker("Color format", selection: $format) {
+                ForEach(ColorPickerOverlay.Format.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+
+            CaptureResultCloseButton()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(CaptureResultDragArea())
+        .glassSurface(cornerRadius: 14, depth: .raised)
+        .onChange(of: format) { _, newFormat in
+            copied = CaptureOrchestrator.copyText(newFormat.string(components))
+        }
     }
 }

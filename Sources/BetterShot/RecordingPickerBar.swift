@@ -49,7 +49,11 @@ struct RecordingPickerControls: View {
         if presenter.isOverRegionSelection {
             // Already selecting an area; any other mode replaces the selection.
             guard action != .region else { return }
-            RegionSelectionOverlay.cancelActive()
+            let selection = RegionSelectionOverlay.cancelActive()
+            // Text reads the area already selected rather than asking for another.
+            if action == .ocr, let selection {
+                CaptureOrchestrator.shared.pendingOCRRegion = selection.pointsRect
+            }
         }
         presenter.showsRecordingOptions = false
         let screen = ActiveDisplayResolver.activeScreen(preferPointer: true)

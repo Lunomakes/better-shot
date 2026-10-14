@@ -126,11 +126,14 @@ final class ScreenCapture {
 
     // MARK: - OCR Region
 
-    func captureAndOCR(onRecognizing: () -> Void = {}) async throws -> String? {
+    /// Reads `region` (global top-left points) when given, else asks for an area with the native selector.
+    func captureAndOCR(in region: CGRect? = nil, onRecognizing: () -> Void = {}) async throws -> String? {
         guard !isCapturing else { return nil }
         isCapturing = true
         defer { isCapturing = false }
-        guard let url = try await interactiveShot(window: false, includeShadow: false) else { return nil }
+        let shot = if let region { try await regionShot(region) }
+            else { try await interactiveShot(window: false, includeShadow: false) }
+        guard let url = shot else { return nil }
         defer { try? FileManager.default.removeItem(at: url) }
         onRecognizing()
         return try await ImageTextRecognizer.recognizeContent(at: url)

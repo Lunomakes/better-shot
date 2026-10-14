@@ -1892,6 +1892,8 @@ private func checkColorPickerAndToast() async throws {
     precondition(pasteboard.string(forType: .string) == "First line\nSecond line")
     capture.completeTextCapture("First line\nSecond line", action: .ocrSingleLine, pasteboard: pasteboard)
     precondition(pasteboard.string(forType: .string) == "First line Second line")
+    // OCR results open an editable panel that takes focus; close it before the focus checks below.
+    CaptureResultPanel.shared.close()
     capture.completeTextCapture("#FF8000", action: .colorPicker, pasteboard: pasteboard)
     capture.completeTextCapture(" \n", action: .ocr, pasteboard: pasteboard)
     precondition(pasteboard.string(forType: .string) == "#FF8000", "Empty OCR preserves the clipboard")

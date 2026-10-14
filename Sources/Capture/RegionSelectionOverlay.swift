@@ -47,7 +47,16 @@ final class RegionSelectionOverlay {
     /// The screenshot selection on screen, so the capture bar shown over it can back out of it.
     private static weak var active: RegionSelectionOverlay?
 
-    static func cancelActive() { active?.finish(.cancelled) }
+    /// Ends the selection and hands back the area that was selected in it, if any.
+    @discardableResult
+    static func cancelActive() -> RegionSelection? {
+        guard let overlay = active else { return nil }
+        let selection = overlay.selectionViews.lazy.compactMap { view in
+            view.currentSelection.map { overlay.regionSelection(rect: $0, screen: view.screen) }
+        }.first
+        overlay.finish(.cancelled)
+        return selection
+    }
 
     /// Returns once the app that was frontmost is active again, so captures show its windows as focused.
     func selectRegion(allowsWindowSelection: Bool = true, frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:]) async -> RegionSelectionOutcome {
@@ -144,7 +153,8 @@ final class RegionSelectionOverlay {
 
     private static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
 
-    /// Other apps' normal windows in global AppKit points, frontmost first.
+    /// Normal windows in global AppKit points, frontmost first. BetterShot's own
+    /// windows count only when captures can see them, such as an OCR result panel.
     private static func visibleWindowRects() -> [CGRect] {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return []
@@ -152,8 +162,10 @@ final class RegionSelectionOverlay {
         let primaryHeight = CGDisplayBounds(CGMainDisplayID()).height
         let ownPID = ProcessInfo.processInfo.processIdentifier
         return list.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
-                  (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != ownPID,
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue
+            let isOwn = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownPID
+            let isShared = (info[kCGWindowSharingState as String] as? NSNumber)?.intValue != 0
+            guard isOwn ? isShared && (layer == 0 || layer == NSWindow.Level.floating.rawValue) : layer == 0,
                   (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = (info[kCGWindowBounds as String] as? NSDictionary).flatMap({ CGRect(dictionaryRepresentation: $0) }),
                   bounds.width > 1, bounds.height > 1 else { return nil }
@@ -163,15 +175,17 @@ final class RegionSelectionOverlay {
     }
 
     private func finishSelection(rect: CGRect, screen: NSScreen) {
-        let globalRect = RegionGeometry.globalRect(local: rect, screenFrame: screen.frame)
-        AppPreferences.lastRegionRect = globalRect
+        AppPreferences.lastRegionRect = RegionGeometry.globalRect(local: rect, screenFrame: screen.frame)
+        finish(.region(regionSelection(rect: rect, screen: screen)))
+    }
 
-        let selection = RegionSelection(
+    private func regionSelection(rect: CGRect, screen: NSScreen) -> RegionSelection {
+        let globalRect = RegionGeometry.globalRect(local: rect, screenFrame: screen.frame)
+        return RegionSelection(
             pointsRect: RegionGeometry.pointsRect(global: globalRect, primaryHeight: CGDisplayBounds(CGMainDisplayID()).height),
             scaleFactor: screen.backingScaleFactor,
             displayID: ActiveDisplayResolver.displayID(for: screen) ?? CGMainDisplayID()
         )
-        finish(.region(selection))
     }
 
     private func finish(_ outcome: RegionSelectionOutcome) {
@@ -240,12 +254,13 @@ private final class SelectionView: NSView {
     private var selection: CGRect?
     private var movesSelection: Bool
     var hasSelection: Bool { selection != nil }
+    var currentSelection: CGRect? { selection }
     private var activeHandle: RegionHandle?
     private var handleDragOrigin: NSPoint?
     private var handleDragRect: CGRect?
     var onBeginSelection: () -> Void = {}
     private var trackingArea: NSTrackingArea?
-    private let screen: NSScreen
+    let screen: NSScreen
     private let crosshairCursor: NSCursor
     private let capturesOnRelease: Bool
     private let onSelect: (CGRect) -> Void
