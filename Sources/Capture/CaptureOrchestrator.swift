@@ -10,6 +10,8 @@ final class CaptureOrchestrator {
     private(set) var lastCaptureURL: URL?
     private(set) var captureInProgress = false
     private var pendingCaptures: [(ShortcutService.Action, NSScreen?)] = []
+    /// The capture running now, so pressing its shortcut again does not queue a second one.
+    private var currentAction: ShortcutService.Action?
     private var captureScreen: NSScreen?
     /// An area already selected in the region selector, for the next OCR to read instead of asking again.
     var pendingOCRRegion: CGRect?
@@ -23,6 +25,8 @@ final class CaptureOrchestrator {
         }
         guard action == .colorPicker || ScreenCapturePermission.isReadyToCapture() else { return }
         if captureInProgress {
+            // A repeated shortcut while that capture is still selecting would otherwise start it again afterwards.
+            guard action != currentAction, !pendingCaptures.contains(where: { $0.0 == action }) else { return }
             pendingCaptures.append((action, screen))
             return
         }
@@ -39,6 +43,7 @@ final class CaptureOrchestrator {
             await executeCapture(next)
         }
         captureScreen = nil
+        currentAction = nil
         captureInProgress = false
     }
 
@@ -92,6 +97,7 @@ final class CaptureOrchestrator {
     }
 
     private func executeCapture(_ action: ShortcutService.Action) async {
+        currentAction = action
         if action != .recording {
             await RecordingBarPresenter.shared.hidePickerForCapture()
         }
