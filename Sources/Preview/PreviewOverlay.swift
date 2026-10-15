@@ -65,7 +65,31 @@ final class PreviewOverlay {
         startMouseTrackingIfNeeded()
     }
 
+    /// Plays the card's exit animation, then removes it. Used where the user
+    /// closes a card; other removals stay immediate because callers rely on that.
+    func close(_ url: URL) {
+        animateOut([url]) { [weak self] in self?.remove(url) }
+    }
+
+    /// Cards playing their exit animation; they leave `items` once it finishes.
+    private(set) var leavingItems: Set<URL> = []
+    static let exitAnimationDuration = 0.22
+
+    private func animateOut(_ urls: [URL], then finish: @escaping () -> Void) {
+        let urls = urls.filter { items.contains($0) && !leavingItems.contains($0) }
+        guard !urls.isEmpty else { return }
+        urls.forEach { cancelScheduledDismiss(for: $0) }
+        leavingItems.formUnion(urls)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.exitAnimationDuration))
+            guard let self else { return }
+            leavingItems.subtract(urls)
+            finish()
+        }
+    }
+
     func remove(_ url: URL) {
+        leavingItems.remove(url)
         focusedActions.remove(url)
         failedSaves.remove(url)
         cancelShare(for: url)
@@ -131,8 +155,11 @@ final class PreviewOverlay {
 
     func clearAll() {
         let discardedItems = items
-        dismiss()
-        discardAfterViewUpdate(discardedItems)
+        // Only the cards cleared here: a capture taken during the animation stays.
+        // Removing the last one dismisses the deck as before.
+        animateOut(discardedItems) { [weak self] in
+            for url in discardedItems { self?.remove(url) }
+        }
     }
 
     private func discardAfterViewUpdate(_ urls: [URL]) {
@@ -387,7 +414,7 @@ final class PreviewOverlay {
             PinnedScreenshotController.shared.pin(url: savedURL, on: currentScreen)
             remove(url)
         case .dismiss:
-            remove(url)
+            close(url)
         case .edit:
             openAnnotateEditor(for: url)
         case .share:
@@ -478,7 +505,7 @@ final class PreviewOverlay {
                 if dismissalIsPaused(for: url) {
                     deadline = .now.advanced(by: .seconds(delay))
                 } else if ContinuousClock.now >= deadline {
-                    remove(url)
+                    close(url)
                     return
                 }
             }
@@ -509,7 +536,7 @@ struct PreviewDeckView: View {
                 }
             }
             ForEach(overlay.items, id: \.self) { url in
-                PreviewCardView(overlay: overlay, url: url, thumbnail: overlay.thumbnails[url])
+                PreviewCardView(overlay: overlay, url: url, thumbnail: overlay.thumbnails[url], animatesEntrance: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: pinnedLeft ? .bottomLeading : .bottomTrailing)
@@ -549,11 +576,14 @@ struct PreviewCardView: View {
 
     @State private var thumbnail: NSImage?
     @State private var isLoadingThumbnail = true
+    /// Starts true outside the live deck, so snapshots and previews draw the settled card.
+    @State private var hasAppeared: Bool
 
-    init(overlay: PreviewOverlay, url: URL, thumbnail: NSImage? = nil) {
+    init(overlay: PreviewOverlay, url: URL, thumbnail: NSImage? = nil, animatesEntrance: Bool = false) {
         self.overlay = overlay
         self.url = url
         _thumbnail = State(initialValue: thumbnail)
+        _hasAppeared = State(initialValue: !animatesEntrance)
     }
 
     private var size: OverlayCardSize { overlay.cardSize }
@@ -674,7 +704,25 @@ struct PreviewCardView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
         }
+        // Entrance and exit: blurred to sharp while fading in, and back out
+        // when closed. With motion allowed the card also slides from or back
+        // toward the deck's screen edge and scales between 96% and full size.
+        .opacity(isShown ? 1 : 0)
+        .blur(radius: isShown ? 0 : 10)
+        .scaleEffect(isShown || reduceMotion ? 1 : 0.96, anchor: entranceAnchor)
+        .offset(x: isShown || reduceMotion ? 0 : entranceOffset)
+        .animation(.easeIn(duration: PreviewOverlay.exitAnimationDuration), value: isLeaving)
+        .allowsHitTesting(!isLeaving)
+        .onAppear {
+            guard !hasAppeared else { return }
+            withAnimation(.easeOut(duration: 0.28)) { hasAppeared = true }
+        }
     }
+
+    private var isLeaving: Bool { overlay.leavingItems.contains(url) }
+    private var isShown: Bool { hasAppeared && !isLeaving }
+    private var entranceAnchor: UnitPoint { overlay.position == .bottomLeft ? .bottomLeading : .bottomTrailing }
+    private var entranceOffset: CGFloat { overlay.position == .bottomLeft ? -16 : 16 }
 
     private func openEditor() {
         overlay.openAnnotateEditor(for: url)

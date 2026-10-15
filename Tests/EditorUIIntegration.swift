@@ -1815,7 +1815,8 @@ private func checkPreviewOverlay(imageURL: URL) async throws {
     defer { otherWindow.close() }
     otherWindow.makeKeyAndOrderFront(nil) // Deliberately leave the tool focus flag set.
     precondition(!livePanel.isKeyWindow, "Moving keyboard focus must leave the preview panel")
-    try await Task.sleep(for: .milliseconds(350))
+    // Hide After now ends with the card's exit animation before it leaves the deck.
+    try await Task.sleep(for: .milliseconds(350) + .seconds(PreviewOverlay.exitAnimationDuration))
     precondition(!overlay.items.contains(imageURL), "Leaving the panel resumes dismissal without a focus-exit callback")
     precondition(FileManager.default.fileExists(atPath: imageURL.path), "Timer dismissal preserves retained files")
     AppPreferences.overlayDismissDelay = AppPreferences.overlayDismissNever

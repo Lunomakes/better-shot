@@ -1246,7 +1246,8 @@ private func checkScreenshotCopyAndSave(source: URL, directory: URL) async throw
         let privateCapture = try await capture()
         let panel = NSApp.windows.first { $0.identifier?.rawValue == "BetterShot.CaptureOverlay" && $0.isVisible }!
         panel.setFrameOrigin(overlayOriginAwayFromPointer(for: panel))
-        try await Task.sleep(for: .milliseconds(250))
+        // Hide After now ends with the card's exit animation before it leaves the deck.
+        try await Task.sleep(for: .milliseconds(250) + .seconds(PreviewOverlay.exitAnimationDuration))
         precondition(PreviewOverlay.shared.items.contains(privateCapture) == keep,
                      "Only staged captures with Keep enabled bypass Hide After")
         precondition(FileManager.default.fileExists(atPath: privateCapture.path))
@@ -1262,7 +1263,8 @@ private func checkScreenshotCopyAndSave(source: URL, directory: URL) async throw
         // Keep the native panel visible, with the live pointer outside it.
         let panel = NSApp.windows.first { $0.identifier?.rawValue == "BetterShot.CaptureOverlay" && $0.isVisible }!
         panel.setFrameOrigin(overlayOriginAwayFromPointer(for: panel))
-        try await Task.sleep(for: .milliseconds(250))
+        // Hide After now ends with the card's exit animation before it leaves the deck.
+        try await Task.sleep(for: .milliseconds(250) + .seconds(PreviewOverlay.exitAnimationDuration))
         precondition(!PreviewOverlay.shared.items.contains(automaticallySaved),
                      "Saved previews must follow Hide After even when Keep is enabled")
         precondition(FileManager.default.fileExists(atPath: automaticallySaved.path),
