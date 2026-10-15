@@ -24,5 +24,6 @@ pkill -x BetterShot 2>/dev/null || true
 
 rm -rf /Applications/BetterShot.app
 ditto "$APP" /Applications/BetterShot.app
-open /Applications/BetterShot.app
+# LaunchServices can refuse (-600) while the old process is still going away.
+open -g /Applications/BetterShot.app || { sleep 2; open -g /Applications/BetterShot.app; }
 echo "==> Installed /Applications/BetterShot.app"
