@@ -51,7 +51,15 @@ enum FrozenScreenFrameCheck {
         let exported = CGImageSourceCreateImageAtIndex(source, 0, nil)!
         precondition(exported.width == cropped.width && exported.height == cropped.height)
         precondition(rgba(exported) == rgba(cropped), "PNG must retain the frozen pixels regardless of decoded channel layout")
-        print("FrozenScreenFrameCheck passed: display origins, 1x/2x crops, orientation, bounds, and lossless PNG pixels")
+        let menuLayer = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        let menu: [String: Any] = [kCGWindowLayer as String: menuLayer, kCGWindowOwnerPID as String: 42, kCGWindowAlpha as String: 1.0]
+        let normal: [String: Any] = [kCGWindowLayer as String: 0, kCGWindowOwnerPID as String: 42]
+        precondition(FrozenScreenFrame.containsOpenMenu([normal, menu], ownPID: 7), "Another app's open menu must freeze the selector")
+        precondition(!FrozenScreenFrame.containsOpenMenu([normal, menu], ownPID: 42), "BetterShot's own menus must not freeze it")
+        precondition(!FrozenScreenFrame.containsOpenMenu([normal], ownPID: 7))
+        var hidden = menu; hidden[kCGWindowAlpha as String] = 0.0
+        precondition(!FrozenScreenFrame.containsOpenMenu([hidden], ownPID: 7), "A fully transparent menu window is not open")
+        print("FrozenScreenFrameCheck passed: display origins, 1x/2x crops, orientation, bounds, lossless PNG pixels, and open-menu detection")
     }
 
     private static func rgba(_ image: CGImage) -> [UInt8] {

@@ -51,7 +51,7 @@ final class ScreenCapture {
 
     // MARK: - Region
 
-    /// Uses the native macOS selector when enabled, else BetterShot's, over a frozen frame when that setting is on.
+    /// Uses the native macOS selector when enabled, else BetterShot's, over a frozen frame when that setting is on or a menu is open.
     func captureRegion() async throws -> URL? {
         guard !isCapturing else { return nil }
         isCapturing = true
@@ -61,7 +61,10 @@ final class ScreenCapture {
             return try await interactiveShot(window: false, includeShadow: false)
         }
 
-        var frozenFrames = AppPreferences.freezeScreenDuringRegionCapture ? try await FrozenScreenCapture.capture() : [:]
+        // An open menu closes once the selector activates BetterShot, so keep it in a frozen frame.
+        let menuIsOpen = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]])
+            .map { FrozenScreenFrame.containsOpenMenu($0, ownPID: ProcessInfo.processInfo.processIdentifier) } ?? false
+        var frozenFrames = AppPreferences.freezeScreenDuringRegionCapture || menuIsOpen ? try await FrozenScreenCapture.capture() : [:]
         switch await RegionSelectionOverlay().selectRegion(frozenFrames: frozenFrames) {
         case .cancelled:
             return nil

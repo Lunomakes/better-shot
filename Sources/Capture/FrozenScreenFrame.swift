@@ -40,3 +40,15 @@ struct FrozenScreenFrame: Sendable {
         }
     }
 }
+
+extension FrozenScreenFrame {
+    /// Whether another app shows a context or menu-bar menu, which activating the selector would close.
+    nonisolated static func containsOpenMenu(_ windowList: [[String: Any]], ownPID: pid_t) -> Bool {
+        let menuLayer = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        return windowList.contains { info in
+            (info[kCGWindowLayer as String] as? NSNumber)?.intValue == menuLayer
+                && (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != ownPID
+                && (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0
+        }
+    }
+}
