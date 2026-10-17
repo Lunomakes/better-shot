@@ -103,6 +103,8 @@ enum AppPreferences {
     }
 
     static let overlayAlwaysShowActionsKey = "bs_overlayAlwaysShowActions"
+    /// Off keeps the newest preview card at the bottom of the deck, nearest the screen edge.
+    static let overlayNewestOnTopKey = "bs_overlayNewestOnTop"
 
     static func resetOverlaySettings() {
         UserDefaults.standard.removeObject(forKey: overlayToolLayoutKey)
@@ -111,6 +113,7 @@ enum AppPreferences {
         overlayCardSize = .small
         overlayEdgeMargin = overlayEdgeMarginDefault
         UserDefaults.standard.removeObject(forKey: overlayAlwaysShowActionsKey)
+        UserDefaults.standard.removeObject(forKey: overlayNewestOnTopKey)
     }
 
     static var overlayPosition: OverlayPosition {

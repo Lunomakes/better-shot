@@ -10803,28 +10803,6 @@
         }
       }
     },
-    "The standard tool layout, size, position, timing, and visibility will be restored.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将恢复标准的工具布局、大小、位置、时间和显示设置。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "將回復標準的工具佈局、大小、位置、時間和顯示設定。"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "標準のツール配置、サイズ、位置、タイミング、表示設定に戻ります。"
-          }
-        }
-      }
-    },
     "Theme": {
       "localizations": {
         "zh-Hans": {
@@ -12185,6 +12163,94 @@
           "stringUnit": {
             "state": "translated",
             "value": "スペースでキャプチャ"
+          }
+        }
+      }
+    },
+    "Card order": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡片顺序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡片順序"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カードの順序"
+          }
+        }
+      }
+    },
+    "Newest at Bottom": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新的在最下面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新的在最下面"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新を下に"
+          }
+        }
+      }
+    },
+    "Newest on Top": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新的在最上面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新的在最上面"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新を上に"
+          }
+        }
+      }
+    },
+    "The standard tool layout, size, position, order, timing, and visibility will be restored.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将恢复标准的工具布局、大小、位置、顺序、时间和显示设置。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將回復標準的工具佈局、大小、位置、順序、時間和顯示設定。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標準のツール配置、サイズ、位置、順序、タイミング、表示設定に戻ります。"
           }
         }
       }

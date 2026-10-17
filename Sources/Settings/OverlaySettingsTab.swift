@@ -7,6 +7,7 @@ struct OverlaySettingsTab: View {
     @AppStorage("bs_overlayEdgeMargin") private var margin = AppPreferences.overlayEdgeMarginDefault
     @AppStorage("bs_overlayDismissDelay") private var delay = 5.0
     @AppStorage(AppPreferences.overlayAlwaysShowActionsKey) private var alwaysShowActions = false
+    @AppStorage(AppPreferences.overlayNewestOnTopKey) private var newestOnTop = false
     @AppStorage(AppPreferences.overlayToolLayoutKey) private var layoutData = Data()
     @State private var confirmingReset = false
 
@@ -33,6 +34,15 @@ struct OverlaySettingsTab: View {
                     Picker("Screen position", selection: $position) {
                         Text("Bottom Right").tag(OverlayPosition.bottomRight.rawValue)
                         Text("Bottom Left").tag(OverlayPosition.bottomLeft.rawValue)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsDivider()
+                SettingRow("Card order") {
+                    Picker("Card order", selection: $newestOnTop) {
+                        Text("Newest at Bottom").tag(false)
+                        Text("Newest on Top").tag(true)
                     }
                     .labelsHidden()
                     .fixedSize()
@@ -99,7 +109,7 @@ struct OverlaySettingsTab: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("The standard tool layout, size, position, timing, and visibility will be restored.")
+            Text("The standard tool layout, size, position, order, timing, and visibility will be restored.")
         }
     }
 }

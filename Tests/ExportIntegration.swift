@@ -1179,7 +1179,8 @@ private func checkScreenshotCopyAndSave(source: URL, directory: URL) async throw
                     precondition(!DeckStaging.isStaged(clipboardURL)
                         && (try? Data(contentsOf: clipboardURL)) == previewData,
                         "Clipboard file pastes must survive dismissing the card")
-                    await Task.yield()
+                    // Copy closes the card with its exit animation before discarding it.
+                    try await Task.sleep(for: .seconds(PreviewOverlay.exitAnimationDuration) + .milliseconds(50))
                     precondition(FileManager.default.fileExists(atPath: staged.path) != keep,
                                  "Normal captures stay available for Restore Last Capture; staged cards are discarded")
                     try FileManager.default.removeItem(at: clipboardURL.deletingLastPathComponent())
@@ -1223,6 +1224,8 @@ private func checkScreenshotCopyAndSave(source: URL, directory: URL) async throw
 
     let toSave = try await capture()
     PreviewOverlay.shared.save(toSave)
+    // Save closes the card with its exit animation before it leaves the deck.
+    try await Task.sleep(for: .seconds(PreviewOverlay.exitAnimationDuration) + .milliseconds(50))
     precondition(savedFiles().count == 2 && !PreviewOverlay.shared.items.contains(toSave))
     try await checkCapturesKeepTheirName(capture: capture, savedFiles: savedFiles)
     let exportsBeforeCaptureAndSave = savedFiles().count
@@ -1237,6 +1240,7 @@ private func checkScreenshotCopyAndSave(source: URL, directory: URL) async throw
                  && FileManager.default.fileExists(atPath: retry.path), "Failed Save preserves the card for retry")
     AppPreferences.saveDirectory = saveFolder.path
     PreviewOverlay.shared.save(retry)
+    try await Task.sleep(for: .seconds(PreviewOverlay.exitAnimationDuration) + .milliseconds(50))
     precondition(savedFiles().count == exportsBeforeCaptureAndSave + 2 && !PreviewOverlay.shared.items.contains(retry))
     print("PASS all screenshot capture modes, clipboard-only deck/editor Copy, private retention, explicit Save, and retry")
 
@@ -1331,6 +1335,7 @@ private func checkScreenshotCopyAndSave(source: URL, directory: URL) async throw
             "Failed auto-save preserves the capture and cancels preview dismissal")
         AppPreferences.saveDirectory = saveFolder.path
         PreviewOverlay.shared.save(failed)
+        try await Task.sleep(for: .seconds(PreviewOverlay.exitAnimationDuration) + .milliseconds(50))
         precondition(savedFiles().count == before + 1 && !PreviewOverlay.shared.items.contains(failed))
     }
     AppPreferences.openEditorAfterCapture = true

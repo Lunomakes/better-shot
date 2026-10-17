@@ -66,7 +66,8 @@ final class PreviewOverlay {
     }
 
     /// Plays the card's exit animation, then removes it. Used where the user
-    /// closes a card; other removals stay immediate because callers rely on that.
+    /// closes a card (Dismiss, Copy, Save, Hide After, Clear All); other removals
+    /// stay immediate because callers rely on that.
     func close(_ url: URL) {
         animateOut([url]) { [weak self] in self?.remove(url) }
     }
@@ -174,12 +175,12 @@ final class PreviewOverlay {
     func saveAll() {
         var savedCount = 0
         let snapshot = items
-        for url in snapshot where shareIDs[url] == nil {
+        for url in snapshot where shareIDs[url] == nil && !leavingItems.contains(url) {
             if Self.isVideo(url) {
                 save(url)
             } else if saveScreenshot(url) {
                 savedCount += 1
-                remove(url)
+                close(url)
             }
         }
         showSavedToast(count: savedCount)
@@ -196,7 +197,7 @@ final class PreviewOverlay {
                 do {
                     _ = try await RecordingDeliverable.saveToDefaultLocation(for: url)
                     guard items.contains(url) else { return }
-                    remove(url)
+                    close(url)
                     ToastWindow.shared.show(message: "Recording saved!", on: screen)
                 } catch {
                     ToastWindow.shared.show(
@@ -211,7 +212,7 @@ final class PreviewOverlay {
         }
         guard saveScreenshot(url) else { return }
         showSavedToast(count: 1)
-        remove(url)
+        close(url)
     }
 
     private func saveScreenshot(_ url: URL) -> Bool {
@@ -228,7 +229,7 @@ final class PreviewOverlay {
         do {
             if Self.isVideo(url) { try VideoFileActions.copyToClipboard(from: url) }
             else { try ScreenshotFileActions.copyImageToClipboard(from: url) }
-            remove(url)
+            close(url)
         } catch {
             cancelScheduledDismiss(for: url)
             ToastWindow.shared.show(isError: true, title: "Copy Failed", message: error.localizedDescription,
@@ -404,6 +405,8 @@ final class PreviewOverlay {
     }
 
     func perform(_ tool: OverlayTool, for url: URL) {
+        // A closing card ignores further actions, including keyboard ones.
+        guard !leavingItems.contains(url) else { return }
         switch tool {
         case .pin:
             let savedURL = DeckStaging.retain(url)
@@ -522,8 +525,11 @@ private final class PreviewDeckPanel: NSPanel {
 
 struct PreviewDeckView: View {
     let overlay: PreviewOverlay
+    @AppStorage(AppPreferences.overlayNewestOnTopKey) private var newestOnTop = false
 
     private var pinnedLeft: Bool { overlay.position == .bottomLeft }
+    /// `items` runs oldest to newest; the stack draws its first item on top.
+    private var orderedItems: [URL] { newestOnTop ? overlay.items.reversed() : overlay.items }
 
     var body: some View {
         VStack(alignment: pinnedLeft ? .leading : .trailing, spacing: 10) {
@@ -535,7 +541,7 @@ struct PreviewDeckView: View {
                     deckButton("Clear All") { overlay.clearAll() }
                 }
             }
-            ForEach(overlay.items, id: \.self) { url in
+            ForEach(orderedItems, id: \.self) { url in
                 PreviewCardView(overlay: overlay, url: url, thumbnail: overlay.thumbnails[url], animatesEntrance: true)
             }
         }
@@ -681,6 +687,8 @@ struct PreviewCardView: View {
             }
         }
         .focusable()
+        // No ring around a clicked card: keyboard focus still shows its actions.
+        .focusEffectDisabled()
         .focused($hasFocus)
         .onChange(of: focusedAction) {
             overlay.setActionFocused(focusedAction != nil, for: url)
