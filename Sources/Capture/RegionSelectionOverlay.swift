@@ -44,6 +44,10 @@ final class RegionSelectionOverlay {
     private var continuation: CheckedContinuation<RegionSelectionOutcome, Never>?
     private var previousApp: NSRunningApplication?
     private var frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:]
+    /// An area to start with, in global AppKit points, regardless of the remembered one.
+    private var initialRect: CGRect?
+    /// The area is for scrolling capture, so S confirms it as it does from a screenshot selection.
+    private var isForScrollCapture = false
     /// The screenshot selection on screen, so the capture bar shown over it can back out of it.
     private static weak var active: RegionSelectionOverlay?
 
@@ -59,10 +63,16 @@ final class RegionSelectionOverlay {
     }
 
     /// Returns once the app that was frontmost is active again, so captures show its windows as focused.
-    func selectRegion(allowsWindowSelection: Bool = true, frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:]) async -> RegionSelectionOutcome {
+    func selectRegion(allowsWindowSelection: Bool = true, frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:],
+                      initialRect: CGRect? = nil, forScrollCapture: Bool = false) async -> RegionSelectionOutcome {
         self.allowsWindowSelection = allowsWindowSelection
+        self.isForScrollCapture = forScrollCapture
         self.frozenFrames = frozenFrames
-        defer { self.frozenFrames = [:] }
+        self.initialRect = initialRect
+        defer {
+            self.frozenFrames = [:]
+            self.initialRect = nil
+        }
         previousApp = NSWorkspace.shared.frontmostApplication.flatMap {
             $0.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : $0
         }
@@ -105,7 +115,8 @@ final class RegionSelectionOverlay {
             window.acceptsMouseMovedEvents = true
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary]
 
-            let previousRegion = (controlScreen == nil && AppPreferences.preselectPreviousRegion ? AppPreferences.lastRegionRect : nil)
+            let previousRegion = (controlScreen != nil ? nil
+                : initialRect ?? (AppPreferences.preselectPreviousRegion ? AppPreferences.lastRegionRect : nil))
                 .flatMap { screen.frame.contains($0) ? RegionGeometry.localRect(global: $0, screenFrame: screen.frame) : nil }
             let overlayView = SelectionView(
                 screen: screen,
@@ -127,6 +138,11 @@ final class RegionSelectionOverlay {
 
             overlayView.onBeginSelection = { [weak self, weak overlayView] in
                 self?.selectionViews.forEach { if $0 !== overlayView { $0.clearSelection() } }
+            }
+            if controlScreen == nil && allowsWindowSelection {
+                overlayView.onScroll = { [weak self] rect in self?.startScrollCapture(rect: rect, screen: screen) }
+            } else if controlScreen == nil && isForScrollCapture {
+                overlayView.onScroll = { [weak self] rect in self?.finishSelection(rect: rect, screen: screen) }
             }
             if let frozenImage = ActiveDisplayResolver.displayID(for: screen).flatMap({ frozenFrames[$0]?.image }) {
                 let backdrop = FrozenBackdropView(image: frozenImage, frame: NSRect(origin: .zero, size: screen.frame.size))
@@ -177,6 +193,13 @@ final class RegionSelectionOverlay {
     private func finishSelection(rect: CGRect, screen: NSScreen) {
         AppPreferences.lastRegionRect = RegionGeometry.globalRect(local: rect, screenFrame: screen.frame)
         finish(.region(regionSelection(rect: rect, screen: screen)))
+    }
+
+    /// Ends the screenshot selection and scrolls the selected area instead, without selecting it again.
+    private func startScrollCapture(rect: CGRect, screen: NSScreen) {
+        CaptureOrchestrator.shared.pendingScrollRegion = regionSelection(rect: rect, screen: screen)
+        finish(.cancelled)
+        Task { await CaptureOrchestrator.shared.performCapture(.scrollCapture, on: screen) }
     }
 
     private func regionSelection(rect: CGRect, screen: NSScreen) -> RegionSelection {
@@ -259,6 +282,8 @@ private final class SelectionView: NSView {
     private var handleDragOrigin: NSPoint?
     private var handleDragRect: CGRect?
     var onBeginSelection: () -> Void = {}
+    /// Set for screenshots: S hands the selected area to scrolling capture.
+    var onScroll: ((CGRect) -> Void)?
     private var trackingArea: NSTrackingArea?
     let screen: NSScreen
     private let crosshairCursor: NSCursor
@@ -414,7 +439,8 @@ private final class SelectionView: NSView {
         }
 
         let hint = NSLocalizedString(movesSelection ? "drag to adjust" : "drag the edges to resize, or draw a new area", comment: "")
-        drawLabel("\(pixelSize(rect))  ·  \(NSLocalizedString("space to capture", comment: ""))  ·  \(hint)  ·  esc", below: rect)
+        let scroll = onScroll == nil ? "" : "  ·  \(NSLocalizedString("S to scroll capture", comment: ""))"
+        drawLabel("\(pixelSize(rect))  ·  \(NSLocalizedString("space to capture", comment: ""))\(scroll)  ·  \(hint)  ·  esc", below: rect)
     }
 
     private func pixelSize(_ rect: CGRect) -> String {
@@ -599,7 +625,12 @@ private final class SelectionView: NSView {
         case 36, 76:
             if let selection { onSelect(selection) }
         default:
-            break
+            // Matched by character so S works on any keyboard layout.
+            if event.modifierFlags.isDisjoint(with: [.command, .option, .control]),
+               event.charactersIgnoringModifiers?.lowercased() == "s",
+               let selection, let onScroll {
+                onScroll(selection)
+            }
         }
     }
 

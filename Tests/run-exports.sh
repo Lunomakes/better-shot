@@ -20,6 +20,14 @@ if [[ "${BETTERSHOT_CHECK_SCROLL_CAPTURE:-0}" == "1" ]]; then
     BETTERSHOT_TESTING=1 "$out/ScrollCaptureIntegration"
     exit 0
 fi
+if [[ "${BETTERSHOT_CHECK_SCROLL_ADJUST:-0}" == "1" ]]; then
+    swiftc -parse-as-library -module-cache-path .build/ExportCheckModules \
+        -I "$derived/Build/Products/$configuration" Tests/ScrollAdjustAreaIntegration.swift \
+        "${objects[@]}" "$derived/Build/Products/$configuration/DockProgress.o" \
+        -o "$out/$program"
+    BETTERSHOT_TESTING=1 "$out/$program"
+    exit 0
+fi
 if [[ "${BETTERSHOT_CHECK_WINDOW_CAPTURE:-0}" == "1" ]]; then
     swiftc -parse-as-library -module-cache-path .build/ExportCheckModules \
         -I "$derived/Build/Products/$configuration" Tests/WindowCaptureIntegration.swift \

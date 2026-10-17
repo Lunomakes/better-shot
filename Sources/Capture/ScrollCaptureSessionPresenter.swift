@@ -10,6 +10,8 @@ final class ScrollCaptureSessionPresenter {
         case completed(CGImage)
         case cancelled
         case failed
+        /// The person wants a different area; nothing captured so far is kept.
+        case adjustArea
     }
 
     private var controller: ScrollCaptureController?
@@ -97,6 +99,12 @@ final class ScrollCaptureSessionPresenter {
         finish(.cancelled)
     }
 
+    /// Frames must keep one size to stitch, so a new area starts the capture over.
+    private func adjustArea() {
+        controller?.cancelSession()
+        finish(.adjustArea)
+    }
+
     /// Swallows mouse-moved events while capturing so hover effects in the target app don't change the frames being stitched.
     private func installMouseMoveSuppression() {
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
@@ -135,7 +143,8 @@ final class ScrollCaptureSessionPresenter {
         let view = ScrollCaptureSessionView(model: model,
             stop: { [weak self] in self?.stop() },
             cancel: { [weak self] in self?.cancel() },
-            toggleAutoScroll: { [weak self] in self?.controller?.toggleAutoScroll() })
+            toggleAutoScroll: { [weak self] in self?.controller?.toggleAutoScroll() },
+            adjustArea: { [weak self] in self?.adjustArea() })
         let hostingView = NSHostingView(rootView: view)
         let size = ScrollCaptureSessionView.size
         let panel = NSPanel(contentRect: NSRect(origin: .zero, size: size),
@@ -197,6 +206,7 @@ struct ScrollCaptureSessionView: View {
     let stop: () -> Void
     let cancel: () -> Void
     var toggleAutoScroll: () -> Void = {}
+    var adjustArea: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 8) {
@@ -211,6 +221,18 @@ struct ScrollCaptureSessionView: View {
             .help("Cancel (Esc)")
             .accessibilityLabel("Cancel Scrolling Capture")
             .accessibilityIdentifier("scrollCaptureCancel")
+
+            Button(action: adjustArea) {
+                Image(systemName: "crop")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BarMetrics.activeTint.opacity(0.75))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Adjust Area (starts over)")
+            .accessibilityLabel("Adjust Scrolling Capture Area")
+            .accessibilityIdentifier("scrollCaptureAdjustArea")
 
             status
                 .frame(maxWidth: .infinity, alignment: .leading)

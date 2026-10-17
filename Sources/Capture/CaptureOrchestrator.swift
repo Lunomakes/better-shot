@@ -15,6 +15,8 @@ final class CaptureOrchestrator {
     private var captureScreen: NSScreen?
     /// An area already selected in the region selector, for the next OCR to read instead of asking again.
     var pendingOCRRegion: CGRect?
+    /// An area already selected in the region selector, for the next scrolling capture to scroll instead of asking again.
+    var pendingScrollRegion: RegionSelection?
 
     private init() {}
 
@@ -58,29 +60,45 @@ final class CaptureOrchestrator {
     }
 
     private func performScrollCapture() async {
-        let outcome = await RegionSelectionOverlay().selectRegion(allowsWindowSelection: false)
-        guard case .region(let selection) = outcome,
-              let selectedScreen = ActiveDisplayResolver.screen(for: selection.displayID) else { return }
-        captureScreen = selectedScreen
-        let rect = RegionGeometry.pointsRect(global: selection.pointsRect,
-            primaryHeight: CGDisplayBounds(CGMainDisplayID()).height)
-        switch await ScrollCaptureSessionPresenter.shared.capture(rect: rect, on: selectedScreen) {
-        case .completed(let image):
-            do {
-                let url = try await Self.writeScrollImage(image)
-                ScreenCapture.shared.playShutterSound()
-                await processCapturedImage(url, action: .scrollCapture)
-            } catch {
-                ToastWindow.shared.show(isError: true, title: "Couldn’t finish scrolling capture",
-                    message: "The image could not be prepared. Select the area and try again. \(error.localizedDescription)",
+        let pending = pendingScrollRegion
+        pendingScrollRegion = nil
+        var outcome: RegionSelectionOutcome
+        if let pending {
+            outcome = .region(pending)
+        } else {
+            outcome = await RegionSelectionOverlay().selectRegion(allowsWindowSelection: false, forScrollCapture: true)
+        }
+        // Adjust Area reopens the selector on the current area, then starts over with the new one.
+        while case .region(let selection) = outcome,
+              let selectedScreen = ActiveDisplayResolver.screen(for: selection.displayID) {
+            captureScreen = selectedScreen
+            let rect = RegionGeometry.pointsRect(global: selection.pointsRect,
+                primaryHeight: CGDisplayBounds(CGMainDisplayID()).height)
+            // An area handed over from the screenshot selector is remembered as if it had been confirmed there.
+            if pending != nil { AppPreferences.lastRegionRect = rect }
+            switch await ScrollCaptureSessionPresenter.shared.capture(rect: rect, on: selectedScreen) {
+            case .completed(let image):
+                do {
+                    let url = try await Self.writeScrollImage(image)
+                    ScreenCapture.shared.playShutterSound()
+                    await processCapturedImage(url, action: .scrollCapture)
+                } catch {
+                    ToastWindow.shared.show(isError: true, title: "Couldn’t finish scrolling capture",
+                        message: "The image could not be prepared. Select the area and try again. \(error.localizedDescription)",
+                        systemIcon: "exclamationmark.triangle", duration: 10, on: selectedScreen)
+                }
+            case .failed:
+                ToastWindow.shared.show(isError: true, title: "Couldn’t capture scrolling area",
+                    message: "Check Screen & System Audio Recording permission, then select the area and try again.",
                     systemIcon: "exclamationmark.triangle", duration: 10, on: selectedScreen)
+            case .adjustArea:
+                outcome = await RegionSelectionOverlay().selectRegion(allowsWindowSelection: false, initialRect: rect,
+                                                                     forScrollCapture: true)
+                continue
+            case .cancelled:
+                break
             }
-        case .failed:
-            ToastWindow.shared.show(isError: true, title: "Couldn’t capture scrolling area",
-                message: "Check Screen & System Audio Recording permission, then select the area and try again.",
-                systemIcon: "exclamationmark.triangle", duration: 10, on: selectedScreen)
-        case .cancelled:
-            break
+            return
         }
     }
 

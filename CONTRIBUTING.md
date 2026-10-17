@@ -450,6 +450,7 @@ with `make test` when production code changes.
 | Area | Command |
 | --- | --- |
 | Live scroll capture, automatic page-end detection, and ordered pixels (requires existing Screen Recording and Accessibility permissions) | `BETTERSHOT_CHECK_SCROLL_CAPTURE=1 bash Tests/run-exports.sh` |
+| Scrolling capture's Adjust Area: selector, restart on a new area, S to confirm, stitched size (requires existing Screen Recording permission; takes focus briefly) | `BETTERSHOT_CHECK_SCROLL_ADJUST=1 bash Tests/run-exports.sh` |
 | Interactive native window selection, pixels, staging, preview, and Escape (requires existing Screen Recording permission) | `BETTERSHOT_CHECK_WINDOW_CAPTURE=1 bash Tests/run-exports.sh` |
 | Screenshot Copy/Save and private storage | `BETTERSHOT_CHECK_SCREENSHOT_SAVING=1 bash Tests/run-exports.sh` |
 | Video compositing and encoded exports | `BETTERSHOT_CHECK_VIDEO_EXPORTS=1 bash Tests/run-exports.sh` |
