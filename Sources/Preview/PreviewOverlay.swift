@@ -447,6 +447,8 @@ final class PreviewOverlay {
         panel.becomesKeyOnlyIfNeeded = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = false
+        // Keep the deck out of the next screenshot unless Settings opts app windows in.
+        PreviewWindowCaptureExclusion.shared.register(window: panel)
 
         let hostingView = NSHostingView(rootView: PreviewDeckView(overlay: self))
         panel.contentView = hostingView

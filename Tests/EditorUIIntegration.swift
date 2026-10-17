@@ -1748,6 +1748,16 @@ private func checkPreviewOverlay(imageURL: URL) async throws {
     overlay.show(url: imageURL)
     let panel = NSApp.windows.first { $0.identifier?.rawValue == "BetterShot.CaptureOverlay" }!
     precondition(panel.canBecomeKey && !panel.canBecomeMain, "Overlay actions must support native keyboard focus")
+    let includedApps = defaults.object(forKey: BetterShotPreferences.includeAppWindowsInCapturesKey)
+    defaults.set(false, forKey: BetterShotPreferences.includeAppWindowsInCapturesKey)
+    PreviewWindowCaptureExclusion.shared.refreshRegisteredWindows()
+    precondition(panel.sharingType == .none, "The preview deck must not appear in the next screenshot")
+    defaults.set(true, forKey: BetterShotPreferences.includeAppWindowsInCapturesKey)
+    PreviewWindowCaptureExclusion.shared.refreshRegisteredWindows()
+    precondition(panel.sharingType == .readOnly, "Including app windows in captures must include the preview deck")
+    if let includedApps { defaults.set(includedApps, forKey: BetterShotPreferences.includeAppWindowsInCapturesKey) }
+    else { defaults.removeObject(forKey: BetterShotPreferences.includeAppWindowsInCapturesKey) }
+    PreviewWindowCaptureExclusion.shared.refreshRegisteredWindows()
     let originalWidth = panel.frame.width
     AppPreferences.overlayCardSize = .large
     overlay.refreshSettings()
