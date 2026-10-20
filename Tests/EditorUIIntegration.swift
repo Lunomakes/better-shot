@@ -1002,7 +1002,7 @@ func checkCaptureControlsUI() throws {
                      to: output.appendingPathComponent("recording-setup-\(name).png"), height: 180)
         try snapshot(RecordingPickerControls().padding(.horizontal, BarMetrics.horizontalPadding)
             .frame(height: BarMetrics.height).studioGlass(cornerRadius: BarMetrics.cornerRadius, opacity: 0.78)
-            .background(EditorChrome.workspace), scheme: scheme, width: 760,
+            .background(EditorChrome.workspace), scheme: scheme, width: BarMetrics.panelWidth,
                      to: output.appendingPathComponent("capture-\(name).png"), height: 100)
     }
     print("PASS scrolling capture menu entry, missing recording source rejection, and capture/setup/transport light and dark layouts")

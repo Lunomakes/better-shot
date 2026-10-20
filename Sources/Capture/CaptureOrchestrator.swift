@@ -17,6 +17,8 @@ final class CaptureOrchestrator {
     var pendingOCRRegion: CGRect?
     /// An area already selected in the region selector, for the next scrolling capture to scroll instead of asking again.
     var pendingScrollRegion: RegionSelection?
+    /// The capture bar's Edit confirmed the selection in progress, so that capture opens in the editor.
+    var editsCurrentCapture = false
 
     private init() {}
 
@@ -140,6 +142,7 @@ final class CaptureOrchestrator {
     // MARK: - Private
 
     private func captureAndProcess(action: ShortcutService.Action = .region, _ capture: () async throws -> URL?) async {
+        defer { editsCurrentCapture = false }
         let delay = action == .timedRegion ? max(3, AppPreferences.selfTimerDelay.rawValue) : AppPreferences.selfTimerDelay.rawValue
         if delay > 0 {
             await CountdownOverlay.shared.showCountdown(seconds: delay, on: captureScreen)
@@ -150,7 +153,7 @@ final class CaptureOrchestrator {
 
             ScreenCapture.shared.playShutterSound()
 
-            await processCapturedImage(url, action: action)
+            await processCapturedImage(url, action: editsCurrentCapture ? .regionEdit : action)
         } catch {
             ToastWindow.shared.show(isError: true, title: "Couldn’t capture screenshot", message: error.localizedDescription,
                 systemIcon: "exclamationmark.triangle", duration: 10, on: captureScreen)

@@ -62,6 +62,16 @@ final class RegionSelectionOverlay {
         return selection
     }
 
+    /// Confirms the area selected on screen as Return does; false when nothing is selected yet.
+    @discardableResult
+    static func confirmActive() -> Bool {
+        guard let overlay = active,
+              let view = overlay.selectionViews.first(where: { $0.currentSelection != nil }),
+              let rect = view.currentSelection else { return false }
+        overlay.finishSelection(rect: rect, screen: view.screen)
+        return true
+    }
+
     /// Returns once the app that was frontmost is active again, so captures show its windows as focused.
     func selectRegion(allowsWindowSelection: Bool = true, frozenFrames: [CGDirectDisplayID: FrozenScreenFrame] = [:],
                       initialRect: CGRect? = nil, forScrollCapture: Bool = false) async -> RegionSelectionOutcome {

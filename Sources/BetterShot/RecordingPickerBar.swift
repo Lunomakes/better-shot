@@ -64,18 +64,25 @@ struct RecordingPickerControls: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(Array(Self.screenshotActions.enumerated()), id: \.element.0) { index, item in
-                let (id, action, caption, icon) = item
-                if action == .ocr { BarDivider() }
-                let title = ShortcutService.shared.help(action == .ocr ? "Copy text from screen"
-                    : action == .scrollCapture ? "Scrolling Capture" : caption, for: action)
-                BarActionButton(id: id, title: title, systemImage: icon, caption: caption) {
-                    capture(action)
-                }
-                .help(title)
+            Picker("Capture mode", selection: captureMode) {
+                Image(systemName: "camera").accessibilityLabel("Screenshot").tag(false)
+                Image(systemName: "video").accessibilityLabel("Recording").tag(true)
             }
-            // Their menu and popover would open beneath the selection overlay.
-            if !presenter.isOverRegionSelection { recordingControls }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help("Switch between screenshots and recording")
+            .padding(.horizontal, 4)
+            BarDivider()
+            if presenter.showsRecordingOptions {
+                RecordingOptionsView()
+            } else {
+                screenshotControls
+                BarDivider()
+                editButton
+            }
+            // Its menu would open beneath the selection overlay.
+            if !presenter.isOverRegionSelection { timerControl }
             if showsCloseButton {
                 BarActionButton(id: .close, title: "Close", systemImage: "xmark",
                                 accessibility: "Close capture bar — Esc") {
@@ -91,7 +98,48 @@ struct RecordingPickerControls: View {
     }
 
     @ViewBuilder
-    private var recordingControls: some View {
+    private var screenshotControls: some View {
+        ForEach(Array(Self.screenshotActions.enumerated()), id: \.element.0) { index, item in
+            let (id, action, caption, icon) = item
+            if action == .ocr { BarDivider() }
+            let title = ShortcutService.shared.help(action == .ocr ? "Copy text from screen"
+                : action == .scrollCapture ? "Scrolling Capture" : caption, for: action)
+            BarActionButton(id: id, title: title, systemImage: icon, caption: caption) {
+                capture(action)
+            }
+            .help(title)
+        }
+    }
+
+    /// Over a region selection, recording ends the selection and reopens the
+    /// full bar, because the recording menus would open beneath the overlay.
+    private var captureMode: Binding<Bool> {
+        Binding {
+            presenter.showsRecordingOptions
+        } set: { recording in
+            guard presenter.isOverRegionSelection else {
+                presenter.showsRecordingOptions = recording
+                return
+            }
+            guard recording else { return }
+            RegionSelectionOverlay.cancelActive()
+            Task { await ShortcutService.shared.performGlobal(.recordingOptions) }
+        }
+    }
+
+    /// Over a selection, captures that area into the editor; otherwise selects an area first.
+    private var editButton: some View {
+        let title = ShortcutService.shared.help("Capture Region & Annotate", for: .regionEdit)
+        return BarActionButton(id: .edit, title: title, systemImage: "square.and.pencil", caption: "Edit") {
+            guard presenter.isOverRegionSelection else { return capture(.regionEdit) }
+            CaptureOrchestrator.shared.editsCurrentCapture = true
+            if !RegionSelectionOverlay.confirmActive() { CaptureOrchestrator.shared.editsCurrentCapture = false }
+        }
+        .help(title)
+    }
+
+    @ViewBuilder
+    private var timerControl: some View {
         BarDivider()
         Menu {
             Section("Screenshot timer") {
@@ -117,15 +165,6 @@ struct RecordingPickerControls: View {
         }
         .menuStyle(.button).buttonStyle(BarButtonStyle()).menuIndicator(.hidden)
         .accessibilityLabel("Screenshot and recording timers")
-        Button { presenter.showsRecordingOptions.toggle() } label: {
-            BarActionLabel(id: .recording, title: "Recording options", systemImage: "video",
-                           caption: "Recording")
-        }
-        .buttonStyle(BarButtonStyle())
-        .accessibilityLabel("Recording options")
-        .popover(isPresented: $presenter.showsRecordingOptions, arrowEdge: .top) {
-            RecordingOptionsView()
-        }
     }
 
     private func timerLabel(_ seconds: Int) -> String {
@@ -143,7 +182,7 @@ struct RecordingPickerControls: View {
     }
 }
 
-/// The compact 0.5.4 recording setup in the capture bar.
+/// The compact 0.5.4 recording setup shown inline in the capture bar's recording mode.
 struct RecordingOptionsView: View {
     @State private var sources = RecordingSourceCatalog.shared
     @AppStorage(BetterShotPreferences.recordingCameraDeviceIDKey) private var cameraID = ""
@@ -152,18 +191,17 @@ struct RecordingOptionsView: View {
     @AppStorage(BetterShotPreferences.recordingTeleprompterEnabledKey) private var teleprompterEnabled = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Recording").font(.headline)
-            Text("Choose a source to start recording.")
-                .font(.subheadline).foregroundStyle(.secondary)
-            if sources.isLoading { ProgressView("Loading recording sources…") }
+        HStack(spacing: 4) {
+            if sources.isLoading { ProgressView().controlSize(.small).accessibilityLabel("Loading recording sources") }
             if let error = sources.errorMessage {
-                Text(error).font(.caption).foregroundStyle(.red)
-                Button("Try Again") { Task { await sources.refresh() } }
+                BarActionButton(id: .recording, title: error, systemImage: "exclamationmark.triangle",
+                    tint: .red, caption: "Try Again") {
+                    Task { await sources.refresh() }
+                }
+                BarDivider()
             }
             recordingOptions.disabled(sources.isLoading)
         }
-        .padding(20)
         .task { await sources.refresh() }
     }
 
@@ -248,13 +286,11 @@ struct RecordingOptionsView: View {
     }
 
     private func startAreaRecording() {
-        RecordingBarPresenter.shared.showsRecordingOptions = false
         RecordingBarPresenter.shared.hide()
         RecordingCaptureEntry.recordArea()
     }
 
     private func startRecording(_ start: () -> Void) {
-        RecordingBarPresenter.shared.showsRecordingOptions = false
         TeleprompterComposerPresenter.shared.hide()
         start()
     }

@@ -30,7 +30,7 @@ enum BarMetrics {
     /// morphing between them never resizes the window - only the bar's own
     /// rounded rect animates. Wide enough for the widest mode plus the room a
     /// tooltip needs beyond the end controls.
-    static let panelWidth: CGFloat = 760
+    static let panelWidth: CGFloat = 860
     static var panelHeight: CGFloat { BarTooltip.reservedHeight + height + shadowSlack }
 
     /// Marks drawn over the classic frosted backing.
@@ -95,6 +95,7 @@ enum BarTooltipID: String {
     case screenshotScroll
     case ocr
     case colorPicker
+    case edit
 
     case recording
     case display
