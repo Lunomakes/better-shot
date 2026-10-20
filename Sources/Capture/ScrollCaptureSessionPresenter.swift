@@ -78,6 +78,11 @@ final class ScrollCaptureSessionPresenter {
         preview?.orderFrontRegardless()
         present(model: model, rect: rect, on: screen)
         controller.captureBelowWindowID = CGWindowID(outline.windowNumber)
+        // Mouse moves are swallowed below, and scrolling only counts inside the area, so a
+        // session started from the capture bar or a selection corner must begin with the pointer inside.
+        if !rect.contains(NSEvent.mouseLocation) {
+            CGWarpMouseCursorPosition(CGPoint(x: rect.midX, y: CGDisplayBounds(CGMainDisplayID()).height - rect.midY))
+        }
         if ShortcutService.hasAccessibilityPermission { installMouseMoveSuppression() }
         keyMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { self?.cancel() }
@@ -255,7 +260,7 @@ struct ScrollCaptureSessionView: View {
 
     @ViewBuilder private var status: some View {
         if let message = model.statusMessage {
-            Text(message)
+            Text(LocalizedStringKey(message))
                 .font(.system(size: 11))
                 .foregroundStyle(BarMetrics.activeTint)
                 .lineLimit(2)

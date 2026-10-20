@@ -70,9 +70,7 @@ final class ScrollCapturePreviewPanel: NSPanel {
         contentView = container
 
         imageView.frame = container.bounds
-        imageView.autoresizingMask = [.width, .height]
         imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.imageAlignment = .alignTop
         container.addSubview(imageView)
     }
 
@@ -95,13 +93,10 @@ final class ScrollCapturePreviewPanel: NSPanel {
         let ceilingY = screenFrame.maxY - 20  // small margin from screen top
         let availableHeight = max(minHeight, ceilingY - anchorBottom)
 
-        // Desired height based on image aspect ratio
-        let imageAspect = image.size.height / max(1, image.size.width)
-        let contentWidth = Self.previewWidth - 8
-        let desiredHeight = contentWidth * imageAspect + 8
-
-        // Clamp to available space — image scales down proportionally inside the view
-        let panelHeight = min(desiredHeight, availableHeight)
+        // The image always fills the width; once the panel reaches the screen top,
+        // the oldest rows are clipped so the newest stitched content stays visible.
+        let imageHeight = Self.previewWidth * image.size.height / max(1, image.size.width)
+        let panelHeight = min(imageHeight, availableHeight)
 
         // Anchor bottom at capture rect bottom, grow upward
         let panelBottom = anchorBottom + panelHeight <= ceilingY
@@ -110,5 +105,7 @@ final class ScrollCapturePreviewPanel: NSPanel {
 
         let newFrame = NSRect(x: x, y: panelBottom, width: Self.previewWidth, height: panelHeight)
         setFrame(newFrame, display: true, animate: false)
+        // Bottom-anchored in the flipped-up container, so any overflow is the oldest content at the top.
+        imageView.frame = NSRect(x: 0, y: 0, width: Self.previewWidth, height: imageHeight)
     }
 }

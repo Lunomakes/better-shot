@@ -12408,6 +12408,28 @@
           }
         }
       }
+    },
+    "Lost the page position. Scroll back up a little to continue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟丢了页面位置，往回滚一点即可继续。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟丟了頁面位置，往回捲動一點即可繼續。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ページの位置を見失いました。少し上に戻すと続行できます。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

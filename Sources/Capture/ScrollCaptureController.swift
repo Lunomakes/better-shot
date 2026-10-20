@@ -49,13 +49,16 @@ final class ScrollCaptureController {
     private var autoScrollTask: Task<Void, Never>?
     private var targetAppPID: pid_t = 0
 
-    private let manualCaptureInterval: TimeInterval = 0.15
+    /// Frequent enough that a fast trackpad flick still overlaps the previous frame; busy grabs are skipped.
+    private let manualCaptureInterval: TimeInterval = 0.05
     private var lastCaptureTime: TimeInterval = 0
     private var settlementTimer: Timer?
     private let settlementInterval: TimeInterval = 0.25
     private let maxMatchNotFound = 8
 
     private var isCapturing = false
+    private var manualMisses = 0
+    private static let lostTrackMessage = "Lost the page position. Scroll back up a little to continue."
 
     private enum Step { case appended, unchanged, tooSmall, unmatched }
 
@@ -378,7 +381,21 @@ final class ScrollCaptureController {
         guard isActive, !isStopping, !isCapturing, let frame = captureFrame() else { return }
         isCapturing = true
         defer { isCapturing = false }
-        await process(frame)
+        noteManualStep(await process(frame))
+    }
+
+    /// Joins resume once the page is back where it overlaps the last strip, so say so after repeated misses.
+    private func noteManualStep(_ step: Step) {
+        switch step {
+        case .appended, .unchanged:
+            if manualMisses >= 3 { onStatusMessage?(nil) }
+            manualMisses = 0
+        case .unmatched:
+            manualMisses += 1
+            if manualMisses == 3 { onStatusMessage?(Self.lostTrackMessage) }
+        case .tooSmall:
+            break
+        }
     }
 
     private func settledCapture(final: Bool = false) async {
@@ -389,7 +406,8 @@ final class ScrollCaptureController {
         isCapturing = true
         defer { isCapturing = false }
         guard let frame = await captureSettledFrame(), isActive else { return }
-        await process(frame, final: final)
+        let step = await process(frame, final: final)
+        if !final { noteManualStep(step) }
     }
 
     private func detectRightMargin(current: CGImage, previous: CGImage) {
