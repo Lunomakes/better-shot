@@ -20,7 +20,8 @@ final class AppUpdater {
 
     private(set) var state: State = .idle
 
-    nonisolated private static let owner = "KartikLabhshetwar"
+    // This fork checks its own releases, so it never offers to replace itself with upstream BetterShot.
+    nonisolated private static let owner = "Lunomakes"
     nonisolated private static let repo = "better-shot"
 
     private var owner: String { Self.owner }

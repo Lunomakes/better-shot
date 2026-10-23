@@ -1400,7 +1400,7 @@ struct ShortcutRecorderView: NSViewRepresentable {
 
 struct AboutTab: View {
     private let updater = AppUpdater.shared
-    private static let repository = URL(string: "https://github.com/KartikLabhshetwar/better-shot")!
+    private static let repository = URL(string: "https://github.com/Lunomakes/better-shot")!
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -1505,9 +1505,11 @@ struct AboutTab: View {
                 .controlSize(.small)
                 .accessibilityLabel(updateCaption)
 
-        case .available(let newVersion, let url):
-            Button("Download and Install") {
-                Task { await updater.downloadAndInstall(version: newVersion, url: url) }
+        case .available:
+            // shortcut: fork releases are not Developer ID signed, so the in-place installer would reject
+            // them; open the release page instead until releases are signed and notarized.
+            Button("Download") {
+                NSWorkspace.shared.open(Self.repository.appendingPathComponent("releases/latest"))
             }
             .buttonStyle(.borderedProminent)
 

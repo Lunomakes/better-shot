@@ -5,21 +5,21 @@ import Security
 enum UpdaterTrustCheck {
     static func main() {
         let accepted = [
-            "https://github.com/KartikLabhshetwar/better-shot/releases/download/v0.3.7/BetterShot-0.3.7_arm64.dmg",
-            "https://github.com/KartikLabhshetwar/better-shot/releases/download/v0.4.0/BetterShot-0.4.0_x86_64.dmg",
+            "https://github.com/Lunomakes/better-shot/releases/download/v0.3.7/BetterShot-0.3.7_arm64.dmg",
+            "https://github.com/Lunomakes/better-shot/releases/download/v0.4.0/BetterShot-0.4.0_x86_64.dmg",
         ]
         for raw in accepted {
             precondition(AppUpdater.isTrustedAssetURL(URL(string: raw)!), "a genuine release asset must be trusted: \(raw)")
         }
 
         let rejected = [
-            "http://github.com/KartikLabhshetwar/better-shot/releases/download/v1/x.dmg",
-            "https://githubb.com/KartikLabhshetwar/better-shot/releases/download/v1/x.dmg",
-            "https://github.com.evil.tld/KartikLabhshetwar/better-shot/releases/download/v1/x.dmg",
-            "https://evil.example/KartikLabhshetwar/better-shot/releases/download/v1/x.dmg",
+            "http://github.com/Lunomakes/better-shot/releases/download/v1/x.dmg",
+            "https://githubb.com/Lunomakes/better-shot/releases/download/v1/x.dmg",
+            "https://github.com.evil.tld/Lunomakes/better-shot/releases/download/v1/x.dmg",
+            "https://evil.example/Lunomakes/better-shot/releases/download/v1/x.dmg",
             "https://github.com/attacker/better-shot/releases/download/v1/x.dmg",
-            "https://github.com/KartikLabhshetwar/other-repo/releases/download/v1/x.dmg",
-            "https://github.com/KartikLabhshetwar/better-shot/issues/1/x.dmg",
+            "https://github.com/Lunomakes/other-repo/releases/download/v1/x.dmg",
+            "https://github.com/Lunomakes/better-shot/issues/1/x.dmg",
             "file:///tmp/x.dmg",
         ]
         for raw in rejected {

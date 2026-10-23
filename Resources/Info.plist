@@ -11,7 +11,9 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>BetterShot</string>
+    <string>BetterShot Plus</string>
+    <key>CFBundleDisplayName</key>
+    <string>BetterShot Plus</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
