@@ -4,11 +4,17 @@
 
 <h1 align="center">BetterShot</h1>
 
-> **BetterShot Plus** is a personal fork of [KartikLabhshetwar/better-shot](https://github.com/KartikLabhshetwar/better-shot)
+> **English** — **BetterShot Plus** is a personal fork of [KartikLabhshetwar/better-shot](https://github.com/KartikLabhshetwar/better-shot)
 > with extra capture features (window snapping, an in-selector capture bar, OCR and color result panels,
 > Chinese and Japanese UI). Download it from [this fork's releases](https://github.com/Lunomakes/better-shot/releases).
 > Builds are not notarized: after the first launch is blocked, open **System Settings › Privacy & Security** and click **Open Anyway**.
 > The rest of this README describes upstream BetterShot.
+>
+> **简体中文** — **BetterShot Plus** 是 [KartikLabhshetwar/better-shot](https://github.com/KartikLabhshetwar/better-shot) 的个人 fork，
+> 新增了截图功能：窗口自动框选、选区内的截图工具栏、OCR 与取色结果面板，以及简体中文、繁体中文和日文界面。
+> 请从[本仓库的 Releases](https://github.com/Lunomakes/better-shot/releases) 下载。
+> 安装包未经公证：首次打开被拦截后，前往 **系统设置 › 隐私与安全性**，点击 **仍要打开**。
+> 本 README 其余内容介绍的是上游 BetterShot。
 
 <p align="center">
   <strong>Capture, edit, and share your screen. Native on macOS.</strong>
