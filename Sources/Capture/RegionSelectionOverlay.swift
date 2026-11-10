@@ -113,10 +113,11 @@ final class RegionSelectionOverlay {
         for screen in controlScreen.map({ [$0] }) ?? NSScreen.screens {
             let window = OverlayWindow(
                 contentRect: screen.frame,
-                styleMask: .borderless,
+                styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
             )
+            window.hidesOnDeactivate = false
             window.isOpaque = false
             window.backgroundColor = .clear
             window.level = Self.overlayLevel
@@ -169,8 +170,8 @@ final class RegionSelectionOverlay {
             selectionViews.append(overlayView)
         }
 
+        // The non-activating panel takes keys without activating BetterShot, so the target window keeps focus.
         if controlScreen == nil {
-            NSApp.activate(ignoringOtherApps: true)
             selectionViews.first(where: \.hasSelection)?.window?.makeKeyAndOrderFront(nil)
         }
         crosshair.push()
@@ -247,7 +248,7 @@ final class RegionSelectionOverlay {
 
 // MARK: - Overlay Window (prevents AppKit cursor resets)
 
-private final class OverlayWindow: NSWindow {
+private final class OverlayWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
